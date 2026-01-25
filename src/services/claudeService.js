@@ -344,65 +344,48 @@ async function generateProductResponse(userMessage, products, conversationHistor
     const matchingProducts = products.filter(p => p.isMatch !== false);
     const notMatchingCount = totalChecked - matchingProducts.length;
 
-    const systemPrompt = `Du bist SYNORA. Generiere eine EHRLICHE, VERTRAUENSWÜRDIGE Antwort.
+    const systemPrompt = `Du bist SYNORA. Generiere eine EHRLICHE Antwort.
 
-REGELN:
+WICHTIG - FORMAT:
 1. Schreibe OHNE Markdown (kein **, kein *, kein #)
-2. Nutze Zeilenumbrüche für Lesbarkeit
-3. Sei EHRLICH - wenn nichts passt, sage es!
-4. Erkläre WARUM Produkte passen oder nicht passen
+2. Mache ECHTE Zeilenumbrüche nach jedem Abschnitt!
+3. Nutze • für Aufzählungen
 
-STRUKTUR:
+BEISPIEL FORMAT (mit Zeilenumbrüchen!):
 
-Wenn Produkte passen:
----
-🔍 Geprüft: X Produkte → Y ausgeschlossen → Z passen perfekt
+🔍 Geprüft: 6 Produkte → 3 ausgeschlossen → 3 passen perfekt
 
-Kurz gesagt: [1-2 Sätze Zusammenfassung]
+Kurz gesagt: Für Gaming unter 1000 CHF sind diese 3 Laptops ideal.
 
 Warum diese?
-• Grund 1
-• Grund 2
-• Grund 3
+• Alle haben dedizierte Gaming-Grafikkarte
+• Alle unter deinem Budget
+• Alle von Schweizer Shops
 
 Warum nicht die anderen?
-• [Produkt/Typ]: [Grund]
+• Office-Laptops: Keine Gaming-GPU
+• Chromebooks: Können keine PC-Spiele
 
-💬 Andere Option gewünscht? Sag mir: "günstiger", "andere Marke" oder "Desktop statt Laptop"!
+💬 Andere Option? Sag mir: "günstiger", "andere Marke" oder "Desktop"!
+
 ---
 
-Wenn KEINE Produkte passen:
----
-🔍 Geprüft: X Produkte → X passen NICHT
+WICHTIG: Nach jedem Abschnitt eine LEERE ZEILE!
 
-Ehrlich gesagt: Für deine Anfrage habe ich keine passenden Produkte gefunden.
-
-Das Problem:
-• [Erkläre warum die Produkte nicht passen]
-
-Was du brauchst:
-• [Liste was der User wirklich braucht]
-• Budget-Empfehlung: ab X CHF
-
-💬 Soll ich mit anderen Suchbegriffen suchen?
----
-
-WICHTIG: Am Ende JSON mit Produkt-Gründen (nur wenn Produkte passen):
-
+Am Ende JSON (wird nicht angezeigt):
 \`\`\`json
 {
   "productReasons": [
-    {"index": 0, "reasons": ["Grund 1", "Grund 2", "Grund 3"]},
-    {"index": 1, "reasons": ["Grund 1", "Grund 2", "Grund 3"]},
-    {"index": 2, "reasons": ["Grund 1", "Grund 2", "Grund 3"]}
-  ],
-  "hasMatchingProducts": true/false
+    {"index": 0, "reasons": ["Grund 1", "Grund 2"]},
+    {"index": 1, "reasons": ["Grund 1", "Grund 2"]},
+    {"index": 2, "reasons": ["Grund 1", "Grund 2"]}
+  ]
 }
 \`\`\``;
 
     const productsText = products.length > 0 
       ? products.map((p, i) => `${i+1}. ${p.name} - ${p.price} CHF - ${p.shopName}`).join('\n')
-      : 'Keine passenden Produkte gefunden';
+      : 'Keine passenden Produkte';
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
@@ -410,16 +393,14 @@ WICHTIG: Am Ende JSON mit Produkt-Gründen (nur wenn Produkte passen):
       system: systemPrompt,
       messages: [{
         role: 'user',
-        content: `User fragte: "${userMessage}"
+        content: `User: "${userMessage}"
 
-Geprüfte Produkte: ${totalChecked}
-Passende Produkte: ${matchingProducts.length}
-Ausgeschlossen: ${notMatchingCount}
+Geprüft: ${totalChecked} | Passend: ${matchingProducts.length} | Ausgeschlossen: ${notMatchingCount}
 
-Produkte zum Zeigen:
+Produkte:
 ${productsText}
 
-Generiere die Antwort:`
+Generiere Antwort MIT Zeilenumbrüchen:`
       }]
     });
 
@@ -427,14 +408,11 @@ Generiere die Antwort:`
     
     // Extract JSON
     let productReasons = null;
-    let hasMatchingProducts = true;
-    
     const jsonMatch = fullResponse.match(/```json\s*([\s\S]*?)\s*```/);
     if (jsonMatch) {
       try {
         const jsonData = JSON.parse(jsonMatch[1]);
         productReasons = jsonData.productReasons || null;
-        hasMatchingProducts = jsonData.hasMatchingProducts !== false;
       } catch (e) {}
     }
     
@@ -445,8 +423,7 @@ Generiere die Antwort:`
     
     return {
       text: cleanResponse,
-      productReasons: productReasons,
-      hasMatchingProducts: hasMatchingProducts
+      productReasons: productReasons
     };
 
   } catch (error) {
