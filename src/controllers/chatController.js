@@ -420,6 +420,13 @@ const sendMessage = async (req, res) => {
       return res.status(400).json({ error: 'Nachricht fehlt' });
     }
 
+    // ⭐ NEU: Guest/User Info loggen
+    if (req.user) {
+      console.log(`\n🔐 User: ${req.user.email || req.user.id}`);
+    } else if (req.guestInfo) {
+      console.log(`\n👤 Guest: Suche ${req.guestInfo.searchesUsed}/${req.guestInfo.searchesLimit}`);
+    }
+
     console.log('\n🎯 ===== NEUE CHAT-ANFRAGE =====');
     console.log('📩 Nachricht:', message);
     console.log('📚 History:', conversationHistory ? `${conversationHistory.length} messages` : 'None');
@@ -449,7 +456,10 @@ const sendMessage = async (req, res) => {
           response: confirmResponse,
           products: [],
           intent: intent,
-          isFeedbackResponse: true
+          isFeedbackResponse: true,
+          // ⭐ NEU: Guest Info
+          guestInfo: req.guestInfo || null,
+          isLoggedIn: !!req.user
         });
       }
       
@@ -461,7 +471,10 @@ const sendMessage = async (req, res) => {
           products: [],
           intent: intent,
           isFeedbackResponse: true,
-          needsFollowUp: true
+          needsFollowUp: true,
+          // ⭐ NEU: Guest Info
+          guestInfo: req.guestInfo || null,
+          isLoggedIn: !!req.user
         });
       }
       
@@ -502,7 +515,10 @@ ${quickReplies ? 'Wähle oder schreib mir deine Antwort! 💬' : 'Schreib mir ei
         products: [],
         intent: intent,
         needsFollowUp: true,
-        quickReplies: quickReplies
+        quickReplies: quickReplies,
+        // ⭐ NEU: Guest Info
+        guestInfo: req.guestInfo || null,
+        isLoggedIn: !!req.user
       });
     }
 
@@ -683,16 +699,19 @@ ${quickReplies ? 'Wähle oder schreib mir deine Antwort! 💬' : 'Schreib mir ei
       products: finalProducts,
       productReasons: productReasons,
       intent: intent,
-      // ⭐ NEU: Feedback info
+      // Feedback info
       isFeedbackResponse: intent.isFeedback || false,
       feedbackType: intent.feedbackType || null,
-      // ⭐ NEU: Perplexity Stats für Frontend
+      // Perplexity Stats für Frontend
       verification: {
         totalChecked: totalChecked,
         perplexityVerified: perplexityStats.verified,
         perplexityExcluded: perplexityStats.excluded,
         layer: 'Perplexity Reality Check'
-      }
+      },
+      // ⭐ NEU: Guest Info (für Frontend)
+      guestInfo: req.guestInfo || null,
+      isLoggedIn: !!req.user
     });
 
   } catch (error) {
@@ -702,7 +721,10 @@ ${quickReplies ? 'Wähle oder schreib mir deine Antwort! 💬' : 'Schreib mir ei
     
     res.status(500).json({ 
       error: 'Entschuldigung, es gab einen Fehler bei der Verarbeitung deiner Anfrage.',
-      message: error.message 
+      message: error.message,
+      // ⭐ NEU: Guest Info auch bei Fehler
+      guestInfo: req.guestInfo || null,
+      isLoggedIn: !!req.user
     });
   }
 };
