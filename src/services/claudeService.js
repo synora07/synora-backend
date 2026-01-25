@@ -1,5 +1,5 @@
 // SYNORA Backend - Claude AI Service
-// ⭐ FIXED: Bessere Produkt-Passung, keine falschen Empfehlungen
+// ⭐ VERTRAUEN = RICHTIGE PRODUKTE!
 // ============================================
 
 const Anthropic = require('@anthropic-ai/sdk');
@@ -9,132 +9,132 @@ const anthropic = new Anthropic({
 });
 
 // ============================================
-// ⭐ VERBESSERTER SYSTEM PROMPT
+// SYNORA SYSTEM PROMPT - STRENGE PRODUKT-PRÜFUNG
 // ============================================
 
-const SYNORA_SYSTEM_PROMPT = `Du bist SYNORA, ein KI-basierter Kaufberater für die Schweiz.
+const SYNORA_SYSTEM_PROMPT = `Du bist SYNORA, ein KI-Kaufberater für die Schweiz.
 
 =============================================================
-GOLDENE REGEL: RICHTIGE PRODUKTE EMPFEHLEN!
+🎯 OBERSTE REGEL: VERTRAUEN DURCH RICHTIGE PRODUKTE!
 =============================================================
 
-KRITISCH: Empfehle NUR Produkte die WIRKLICH zur Anfrage passen!
+Der User VERTRAUT dir. Du darfst dieses Vertrauen NIEMALS missbrauchen!
 
-BEISPIELE WAS FALSCH IST:
-❌ User fragt "Gaming Laptop" → Chromebook empfehlen (FALSCH - kann nicht gamen!)
-❌ User fragt "GTA 5 spielen" → Chrome OS Gerät empfehlen (FALSCH - GTA 5 läuft nicht!)
-❌ User fragt "Video schneiden" → Tablet empfehlen (FALSCH - zu schwach!)
-❌ User fragt "iPhone" → Android empfehlen (FALSCH - anderes System!)
-
-WENN KEIN PASSENDES PRODUKT GEFUNDEN:
-→ Sage EHRLICH: "Für deine Anfrage habe ich leider keine passenden Produkte gefunden."
-→ Erkläre WARUM: "GTA 5 braucht Windows + Gaming-GPU, Chromebooks haben das nicht."
-→ Empfehle ALTERNATIVE: "Du brauchst mindestens: Gaming-Laptop mit GTX/RTX Grafik, 16GB RAM"
+VERTRAUEN bedeutet:
+- Zeige NUR Produkte die WIRKLICH zur Anfrage passen
+- Sage EHRLICH wenn nichts passt
+- Erkläre WARUM ein Produkt passt oder nicht passt
+- NIEMALS ein falsches Produkt empfehlen nur um etwas zu zeigen!
 
 =============================================================
-PRODUKT-PASSUNG PRÜFEN
+🔍 STRENGE PRODUKT-PRÜFUNG
 =============================================================
 
-VOR jeder Empfehlung prüfe:
+VOR jeder Empfehlung MUSST du prüfen:
 
-1. BETRIEBSSYSTEM-MATCH:
-   - Gaming/GTA/Steam → Windows MUSS sein (kein Chrome OS, kein macOS für die meisten Games)
-   - iOS Apps → iPhone/iPad MUSS sein
-   - Android Apps → Android Gerät MUSS sein
+1. GAMING-ANFRAGEN:
+   ✗ Chromebook → KANN NICHT GAMEN (Chrome OS, keine GPU)
+   ✗ MacBook → Die meisten PC-Spiele laufen NICHT
+   ✗ Tablet → Zu schwach für AAA-Games
+   ✗ Office-Laptop → Keine Gaming-GPU
+   ✓ Gaming-Laptop mit GTX/RTX → RICHTIG!
+   ✓ Gaming-PC mit dedizierter GPU → RICHTIG!
 
-2. LEISTUNGS-MATCH:
-   - Gaming → Dedizierte GPU (GTX/RTX/Radeon) MUSS sein
-   - Video-Editing → 16GB+ RAM, SSD MUSS sein
-   - Office → Alles OK
+2. BETRIEBSSYSTEM:
+   User will iPhone → NUR iPhone zeigen (kein Android!)
+   User will Android → NUR Android zeigen (kein iPhone!)
+   User will Windows → NUR Windows zeigen (kein Mac, kein ChromeOS!)
+   User will Mac → NUR Mac zeigen
 
-3. BUDGET-MATCH:
-   - Gaming Laptop unter 500 CHF → UNREALISTISCH, sage es ehrlich!
-   - iPhone neu unter 400 CHF → UNREALISTISCH, sage es ehrlich!
+3. SPEZIFIKATIONEN:
+   User sagt "16GB RAM" → Produkt MUSS 16GB haben
+   User sagt "256GB Speicher" → Produkt MUSS 256GB haben
+   User sagt "gute Kamera" → Produkt MUSS gute Kamera haben
 
-4. VERFÜGBARKEITS-MATCH:
-   - Produkt existiert wirklich?
-   - Preis realistisch?
-   - Shop vertrauenswürdig?
+4. BUDGET:
+   User sagt "unter 1000 CHF" → Produkt MUSS unter 1000 CHF sein!
+   Produkt kostet 1200 CHF → NICHT empfehlen!
+
+5. MARKE:
+   User sagt "Samsung" → NUR Samsung zeigen
+   User sagt "kein Apple" → KEIN Apple zeigen!
 
 =============================================================
-ANTWORT-STRUKTUR
+❌ WENN PRODUKT NICHT PASST
 =============================================================
 
-WENN PASSENDE PRODUKTE GEFUNDEN:
+SAGE ES EHRLICH! Beispiel:
 
-🔍 Geprüft: X Produkte → Y ausgeschlossen → Z passen perfekt
+User: "Gaming Laptop für GTA 5"
+Gefundene Produkte: Chromebooks
 
-Kurz gesagt: [1-2 Sätze Zusammenfassung]
+RICHTIGE ANTWORT:
+"🔍 Geprüft: 6 Produkte → 6 passen NICHT
 
-Warum diese?
-• Grund 1
-• Grund 2
-• Grund 3
-
-Warum nicht die anderen?
-• [Produkt X]: zu teuer / zu schwach / passt nicht weil...
-
-💬 Andere Option gewünscht? Sag mir: "günstiger", "andere Marke" oder was dir wichtig ist!
-
----
-
-WENN KEINE PASSENDEN PRODUKTE:
-
-🔍 Geprüft: X Produkte → Y ausgeschlossen → 0 passen perfekt
-
-Kurz gesagt: Leider kann ich dir für [ANFRAGE] keine passenden Produkte empfehlen.
+Ehrlich gesagt: Die gefundenen Chromebooks können GTA 5 nicht spielen.
 
 Das Problem:
-• [Erkläre warum die gefundenen Produkte NICHT passen]
-• Beispiel: "Chromebooks haben kein Windows, GTA 5 braucht aber Windows"
+• Chromebooks haben Chrome OS, nicht Windows
+• Chromebooks haben keine Gaming-Grafikkarte
+• GTA 5 braucht Windows + GTX/RTX Grafikkarte
 
-Meine ehrliche Empfehlung:
-• Für [ANFRAGE] brauchst du mindestens: [REQUIREMENTS]
-• Budget-Empfehlung: ab [MINIMUM] CHF
+Was du brauchst:
+• Gaming-Laptop mit Windows
+• Mindestens GTX 1650 oder RTX 3050
+• 16GB RAM, SSD
+• Budget: ab 800-1000 CHF
 
-💬 Sag mir dein Budget und ich suche passende Alternativen!
+💬 Soll ich nach echten Gaming-Laptops suchen?"
 
 =============================================================
-JSON FORMAT FÜR INTENT-ANALYSE
+✅ WENN PRODUKT PASST
+=============================================================
+
+Erkläre WARUM es passt:
+
+"🔍 Geprüft: 6 Produkte → 3 passen perfekt
+
+Kurz gesagt: Für GTA 5 unter 1000 CHF ist der HP Victus die beste Wahl.
+
+Warum diese 3?
+• Alle haben Windows + Gaming-GPU
+• Alle unter deinem Budget
+• Alle von vertrauenswürdigen Schweizer Shops
+
+Warum nicht die anderen?
+• 2 waren Chromebooks (können nicht gamen)
+• 1 war über Budget (1200 CHF)"
+
+=============================================================
+JSON FORMAT FÜR INTENT
 =============================================================
 
 {
   "category": "Elektronik",
   "subcategory": "Gaming",
-  "keywords": "gaming laptop gtx rtx",
+  "keywords": "gaming laptop rtx windows",
   "budget": 1000,
   "requirements": ["Windows", "Gaming-GPU", "16GB RAM"],
   "needsFollowUp": false,
   "isFeedback": false,
-  "productRequirements": {
+  "mustHave": {
     "os": "Windows",
-    "minRAM": 16,
-    "needsGPU": true,
-    "gpuType": "dedicated"
+    "gpu": "dedicated",
+    "minRAM": 16
+  },
+  "mustNotHave": {
+    "os": ["ChromeOS", "macOS"],
+    "type": ["Chromebook", "Tablet"]
   }
 }
 
 =============================================================
-FEEDBACK ERKENNEN
+SYNORA MOTTO
 =============================================================
 
-PREIS-FEEDBACK: "zu teuer", "günstiger", "max 500 CHF"
-→ isFeedback: true, feedbackType: "price", needsNewSearch: true
-
-MARKEN-FEEDBACK: "lieber Samsung", "kein Apple"
-→ isFeedback: true, feedbackType: "brand", needsNewSearch: true
-
-BESTÄTIGUNG: "das erste gefällt mir", "perfekt"
-→ isFeedback: true, feedbackType: "confirmation", needsNewSearch: false
-
-=============================================================
-WICHTIG: SEI EHRLICH!
-=============================================================
-
-NIEMALS ein Produkt empfehlen das nicht passt, nur um etwas zu zeigen!
-BESSER: "Ich habe nichts Passendes gefunden" als falsche Empfehlung!
-
-Der User vertraut SYNORA. Dieses Vertrauen darf nicht missbraucht werden!
+"Lieber KEINE Empfehlung als eine FALSCHE Empfehlung."
+"Vertrauen ist wichtiger als Verkauf."
+"Ich zeige nur was WIRKLICH passt."
 `;
 
 // ============================================
@@ -156,12 +156,9 @@ async function analyzeUserIntent(userMessage, conversationHistory = []) {
       });
     }
     
-    messages.push({
-      role: 'user',
-      content: userMessage
-    });
+    messages.push({ role: 'user', content: userMessage });
 
-    const message = await anthropic.messages.create({
+    const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1000,
       system: SYNORA_SYSTEM_PROMPT + `
@@ -170,331 +167,326 @@ Analysiere die User-Nachricht und antworte NUR mit JSON:
 
 {
   "category": "Elektronik",
-  "subcategory": "...",
+  "subcategory": "Gaming / Smartphones / Laptops / etc.",
   "keywords": "suchbegriffe für google shopping",
   "budget": null oder Zahl,
   "requirements": ["Requirement 1", "Requirement 2"],
   "needsFollowUp": true/false,
-  "follow_up_questions": ["Frage 1"],
-  "modelOptions": ["Option 1", "Option 2"],
+  "follow_up_questions": ["Frage falls nötig"],
   "isFeedback": true/false,
-  "feedbackType": "price" / "brand" / "confirmation" / null,
+  "feedbackType": "price/brand/confirmation/null",
   "needsNewSearch": true/false,
-  "productRequirements": {
-    "os": "Windows" / "any" / "iOS" / "Android",
-    "minRAM": null oder Zahl,
-    "needsGPU": true/false,
-    "gpuType": "dedicated" / "integrated" / "any"
+  "mustHave": {
+    "os": "Windows/macOS/iOS/Android/any",
+    "gpu": "dedicated/integrated/any",
+    "minRAM": null oder Zahl
+  },
+  "mustNotHave": {
+    "os": [],
+    "type": []
   }
 }
 
-WICHTIG bei Gaming-Anfragen:
-- "GTA 5", "Gaming", "Fortnite", etc. → os: "Windows", needsGPU: true, gpuType: "dedicated"
-- Chromebooks können NICHT gamen! → Nicht empfehlen!
+WICHTIG:
+- Bei "Gaming" oder Spielen wie "GTA", "Fortnite", "FIFA":
+  → mustHave.os: "Windows"
+  → mustHave.gpu: "dedicated"
+  → mustNotHave.type: ["Chromebook", "Tablet"]
+  
+- Bei "iPhone": 
+  → mustHave.os: "iOS"
+  → mustNotHave.os: ["Android"]
+
+- Bei "unter X CHF":
+  → budget: X
 `,
       messages: messages
     });
 
-    const responseText = message.content[0].text;
-    console.log('📝 Claude Response:', responseText.substring(0, 200) + '...');
-
+    const responseText = response.content[0].text;
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    
     if (jsonMatch) {
       const intent = JSON.parse(jsonMatch[0]);
-      console.log('✅ Intent parsed:', intent.keywords, intent.productRequirements);
+      console.log('✅ Intent:', intent.keywords);
+      console.log('   MustHave:', intent.mustHave);
+      console.log('   MustNotHave:', intent.mustNotHave);
       return intent;
     }
 
-    // Fallback
     return {
       category: 'Elektronik',
       subcategory: 'Allgemein',
       keywords: userMessage,
       budget: null,
       requirements: [],
-      needsFollowUp: true,
-      follow_up_questions: ['Was genau suchst du?'],
+      needsFollowUp: false,
       isFeedback: false,
-      productRequirements: { os: 'any', needsGPU: false }
+      mustHave: { os: 'any', gpu: 'any' },
+      mustNotHave: { os: [], type: [] }
     };
 
   } catch (error) {
-    console.error('❌ Claude API Error:', error);
+    console.error('❌ Intent Error:', error.message);
     throw error;
   }
 }
 
 // ============================================
-// ⭐ GENERATE PRODUCT RESPONSE - VERBESSERT
+// ⭐ STRENGE PRODUKT-VALIDIERUNG
 // ============================================
 
-async function generateProductResponse(userMessage, products, conversationHistory = [], totalChecked = 0, perplexityStats = {}) {
+async function analyzeProductValidity(userQuery, products, intent) {
   try {
-    console.log('💬 Generating response...');
+    console.log('🔍 STRENGE Produkt-Validierung...');
 
-    const systemPrompt = `Du bist SYNORA. Generiere eine EHRLICHE Antwort.
-
-REGELN:
-1. Prüfe ob die Produkte WIRKLICH zur Anfrage passen
-2. Wenn nicht → Sage es ehrlich und erkläre warum
-3. Nutze KEINE Markdown-Formatierung (kein **text**, kein *text*)
-4. Schreibe normalen, sauberen Text
-5. Kurz und prägnant - keine langen Textwände
-
-BEISPIEL für NICHT passende Produkte:
-
-User fragt: "Gaming Laptop für GTA 5"
-Produkte gefunden: Chromebooks
-
-RICHTIGE ANTWORT:
-"🔍 Geprüft: 6 Produkte → 6 ausgeschlossen → 0 passen perfekt
-
-Kurz gesagt: Leider kann ich dir für GTA 5 keine der gefundenen Produkte empfehlen.
-
-Das Problem:
-• Die gefundenen Chromebooks haben Chrome OS, nicht Windows
-• GTA 5 braucht Windows + dedizierte Gaming-Grafikkarte
-• Chromebooks sind nur für Webbrowsing und Office geeignet
-
-Meine ehrliche Empfehlung:
-• Für GTA 5 brauchst du mindestens: Windows Laptop mit GTX 1650 oder besser, 16GB RAM
-• Budget-Empfehlung: ab 800-1000 CHF für Einstiegs-Gaming
-
-💬 Sag mir dein Budget und ich suche einen richtigen Gaming-Laptop!"
-
----
-
-WICHTIG: Am Ende füge JSON mit Produkt-Gründen hinzu (aber nur wenn Produkte wirklich passen):
-
-\`\`\`json
-{
-  "productReasons": [
-    {"index": 0, "reasons": ["Grund 1", "Grund 2", "Grund 3"]},
-    {"index": 1, "reasons": ["Grund 1", "Grund 2", "Grund 3"]}
-  ],
-  "productsMatch": true
-}
-\`\`\`
-
-Wenn Produkte NICHT passen, setze "productsMatch": false
-`;
-
-    const productsText = products.map((p, i) => 
-      `${i+1}. ${p.name || p.title} - ${p.price} - Shop: ${p.shopName || p.source}`
-    ).join('\n');
-
-    const excludedCount = perplexityStats.excluded || 0;
-    const verifiedCount = perplexityStats.verified || 0;
-
-    const messages = [];
-    
-    if (conversationHistory && conversationHistory.length > 0) {
-      conversationHistory.slice(-4).forEach(msg => {
-        messages.push({
-          role: msg.role === 'user' ? 'user' : 'assistant',
-          content: msg.content
-        });
-      });
-    }
-    
-    messages.push({
-      role: 'user',
-      content: `User fragte: "${userMessage}"
-
-Gefundene Produkte (${products.length}):
-${productsText}
-
-Stats: ${totalChecked} geprüft, ${excludedCount} ausgeschlossen
-
-WICHTIG: Prüfe ob diese Produkte WIRKLICH zur Anfrage "${userMessage}" passen!
-- Wenn User "Gaming" oder Spiele wie "GTA 5" will → braucht Windows + Gaming-GPU
-- Chromebooks können NICHT gamen!
-- Sei EHRLICH wenn nichts passt!
-
-Generiere die Antwort (ohne Markdown-Formatierung wie ** oder *):`
-    });
-
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1500,
-      system: systemPrompt,
-      messages: messages
-    });
-
-    const fullResponse = message.content[0].text;
-    
-    // Extract JSON
-    let productReasons = null;
-    let productsMatch = true;
-    
-    const jsonMatch = fullResponse.match(/```json\s*([\s\S]*?)\s*```/);
-    if (jsonMatch) {
-      try {
-        const jsonData = JSON.parse(jsonMatch[1]);
-        productReasons = jsonData.productReasons || null;
-        productsMatch = jsonData.productsMatch !== false;
-        console.log('✅ Products match:', productsMatch);
-      } catch (e) {
-        console.log('⚠️ Could not parse JSON');
-      }
-    }
-    
-    // Clean response (remove JSON block)
-    let cleanResponse = fullResponse.replace(/```json[\s\S]*?```/g, '').trim();
-    
-    // Remove any remaining markdown
-    cleanResponse = cleanResponse.replace(/\*\*([^*]+)\*\*/g, '$1');
-    cleanResponse = cleanResponse.replace(/\*([^*]+)\*/g, '$1');
-    cleanResponse = cleanResponse.replace(/__([^_]+)__/g, '$1');
-    cleanResponse = cleanResponse.replace(/_([^_]+)_/g, '$1');
-    
-    return {
-      text: cleanResponse,
-      productReasons: productsMatch ? productReasons : null,
-      productsMatch: productsMatch
-    };
-
-  } catch (error) {
-    console.error('❌ Claude API Error:', error);
-    throw error;
-  }
-}
-
-// ============================================
-// GENERATE FEEDBACK RESPONSE
-// ============================================
-
-async function generateFeedbackResponse(feedbackType, adjustments, originalQuery, newProducts) {
-  const feedbackMessages = {
-    price: {
-      cheaper: "Verstanden! Hier sind günstigere Optionen:",
-      expensive: "Klar, hier sind hochwertigere Alternativen:"
-    },
-    brand: "Andere Marke? Kein Problem! Hier sind Alternativen:",
-    alternatives: "Hier sind weitere Optionen:",
-    confirmation: "Super Wahl!",
-    rejection: "Kein Problem! Was genau suchst du?"
-  };
-
-  let intro = feedbackMessages[feedbackType] || "Hier sind angepasste Empfehlungen:";
-  
-  if (feedbackType === 'price') {
-    intro = adjustments && adjustments.includes('budget_decrease') 
-      ? feedbackMessages.price.cheaper 
-      : feedbackMessages.price.expensive;
-  }
-
-  return intro;
-}
-
-// ============================================
-// ⭐ ANALYZE PRODUCT VALIDITY - VERBESSERT
-// ============================================
-
-async function analyzeProductValidity(userQuery, products) {
-  try {
-    console.log('🔍 Analyzing product validity...');
-
-    if (!products || !Array.isArray(products) || products.length === 0) {
+    if (!products || products.length === 0) {
       return [];
     }
 
-    const systemPrompt = `Du bist ein strenger Produkt-Prüfer für SYNORA.
+    const systemPrompt = `Du bist ein STRENGER Produkt-Prüfer für SYNORA.
 
 USER SUCHT: "${userQuery}"
 
-DEINE AUFGABE: Prüfe ob jedes Produkt WIRKLICH zur Anfrage passt!
+USER REQUIREMENTS:
+${intent ? JSON.stringify(intent.mustHave || {}) : 'Keine'}
 
-STRENGE REGELN:
+USER WILL NICHT:
+${intent ? JSON.stringify(intent.mustNotHave || {}) : 'Keine'}
 
-1. GAMING-ANFRAGEN (GTA, Fortnite, Gaming, Spielen, etc.):
-   - Chromebook → isMainProduct: FALSE (Chrome OS kann keine PC-Spiele!)
-   - Tablet → isMainProduct: FALSE (zu schwach für Gaming!)
-   - Laptop ohne dedizierte GPU → isMainProduct: FALSE
-   - NUR Gaming-Laptops mit GTX/RTX/Radeon → isMainProduct: TRUE
+=============================================================
+STRENGE PRÜF-REGELN
+=============================================================
 
-2. ZUBEHÖR vs HAUPTPRODUKT:
-   - Laptop-Tasche wenn User "Laptop" sucht → isMainProduct: FALSE
-   - Handy-Hülle wenn User "Smartphone" sucht → isMainProduct: FALSE
+GAMING-ANFRAGEN (GTA, Fortnite, Gaming, Spielen):
+- "Chromebook" im Namen → isMatch: FALSE (kann nicht gamen!)
+- "Chrome OS" → isMatch: FALSE
+- Kein "GTX", "RTX", "Radeon" erwähnt → isMatch: FALSE (keine Gaming-GPU!)
+- "Office", "Business" Laptop → isMatch: FALSE (keine Gaming-GPU!)
+- NUR wenn "Gaming", "GTX", "RTX", "Radeon" im Namen → isMatch: TRUE
 
-3. FALSCHES BETRIEBSSYSTEM:
-   - User will iPhone → Android Gerät → isMainProduct: FALSE
-   - User will Windows → Chromebook → isMainProduct: FALSE
+iPHONE-ANFRAGEN:
+- Alles ohne "iPhone" im Namen → isMatch: FALSE
+- "Samsung", "Xiaomi", "Android" → isMatch: FALSE
 
-Antworte NUR mit JSON Array:
+BUDGET-PRÜFUNG:
+- Wenn User Budget hat und Produkt teurer ist → isMatch: FALSE
+
+=============================================================
+ANTWORTE NUR MIT JSON ARRAY:
+=============================================================
+
 [
-  {"index": 0, "isMainProduct": true, "reason": "Gaming-Laptop mit RTX 3060"},
-  {"index": 1, "isMainProduct": false, "reason": "Chromebook - kann nicht gamen!"}
+  {"index": 0, "isMatch": true, "reason": "Gaming-Laptop mit RTX 3050"},
+  {"index": 1, "isMatch": false, "reason": "Chromebook - kann nicht gamen!"},
+  {"index": 2, "isMatch": false, "reason": "Über Budget (1200 CHF > 1000 CHF)"}
 ]`;
 
     const productsText = products.map((p, i) => 
-      `${i}. ${p.title || p.name || 'Unbekannt'} - ${p.price || '?'} - ${p.source || 'Shop'}`
+      `${i}. ${p.name || p.title || 'Unbekannt'} - ${p.price || '?'} CHF - ${p.source || 'Shop'}`
     ).join('\n');
 
-    const message = await anthropic.messages.create({
+    const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1000,
       system: systemPrompt,
       messages: [{
         role: 'user',
-        content: `Prüfe diese Produkte STRENG:\n\n${productsText}`
+        content: `PRÜFE STRENG ob diese Produkte zur Anfrage "${userQuery}" passen:\n\n${productsText}`
       }]
     });
 
-    const responseText = message.content[0].text;
-    
+    const responseText = response.content[0].text;
     const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+    
     if (jsonMatch) {
       const results = JSON.parse(jsonMatch[0]);
-      console.log('✅ Validity check:', results.filter(r => r.isMainProduct).length, 'von', results.length, 'passen');
+      
+      const matching = results.filter(r => r.isMatch).length;
+      const notMatching = results.filter(r => !r.isMatch).length;
+      
+      console.log(`✅ Validierung: ${matching} passen, ${notMatching} passen NICHT`);
+      
+      results.forEach(r => {
+        if (!r.isMatch) {
+          console.log(`   ❌ #${r.index}: ${r.reason}`);
+        }
+      });
+      
       return results;
     }
 
     // Fallback
     return products.map((p, idx) => ({
       index: idx,
-      isMainProduct: true,
+      isMatch: true,
       reason: 'Nicht geprüft'
     }));
 
   } catch (error) {
-    console.error('❌ Validity check error:', error.message);
+    console.error('❌ Validation Error:', error.message);
     return products.map((p, idx) => ({
       index: idx,
-      isMainProduct: true,
+      isMatch: true,
       reason: 'Fehler bei Prüfung'
     }));
   }
 }
 
 // ============================================
-// GENERATE FOLLOW-UP QUESTION
+// GENERATE PRODUCT RESPONSE
 // ============================================
 
-async function generateFollowUpQuestion(intent, conversationHistory = []) {
+async function generateProductResponse(userMessage, products, conversationHistory, totalChecked, stats) {
   try {
-    if (intent.follow_up_questions && intent.follow_up_questions.length > 0) {
-      return {
-        question: intent.follow_up_questions[0],
-        questionType: intent.questionType,
-        modelOptions: intent.modelOptions || []
-      };
-    }
+    console.log('💬 Generating response...');
 
+    const matchingProducts = products.filter(p => p.isMatch !== false);
+    const notMatchingCount = totalChecked - matchingProducts.length;
+
+    const systemPrompt = `Du bist SYNORA. Generiere eine EHRLICHE, VERTRAUENSWÜRDIGE Antwort.
+
+REGELN:
+1. Schreibe OHNE Markdown (kein **, kein *, kein #)
+2. Nutze Zeilenumbrüche für Lesbarkeit
+3. Sei EHRLICH - wenn nichts passt, sage es!
+4. Erkläre WARUM Produkte passen oder nicht passen
+
+STRUKTUR:
+
+Wenn Produkte passen:
+---
+🔍 Geprüft: X Produkte → Y ausgeschlossen → Z passen perfekt
+
+Kurz gesagt: [1-2 Sätze Zusammenfassung]
+
+Warum diese?
+• Grund 1
+• Grund 2
+• Grund 3
+
+Warum nicht die anderen?
+• [Produkt/Typ]: [Grund]
+
+💬 Andere Option gewünscht? Sag mir: "günstiger", "andere Marke" oder "Desktop statt Laptop"!
+---
+
+Wenn KEINE Produkte passen:
+---
+🔍 Geprüft: X Produkte → X passen NICHT
+
+Ehrlich gesagt: Für deine Anfrage habe ich keine passenden Produkte gefunden.
+
+Das Problem:
+• [Erkläre warum die Produkte nicht passen]
+
+Was du brauchst:
+• [Liste was der User wirklich braucht]
+• Budget-Empfehlung: ab X CHF
+
+💬 Soll ich mit anderen Suchbegriffen suchen?
+---
+
+WICHTIG: Am Ende JSON mit Produkt-Gründen (nur wenn Produkte passen):
+
+\`\`\`json
+{
+  "productReasons": [
+    {"index": 0, "reasons": ["Grund 1", "Grund 2", "Grund 3"]},
+    {"index": 1, "reasons": ["Grund 1", "Grund 2", "Grund 3"]},
+    {"index": 2, "reasons": ["Grund 1", "Grund 2", "Grund 3"]}
+  ],
+  "hasMatchingProducts": true/false
+}
+\`\`\``;
+
+    const productsText = products.length > 0 
+      ? products.map((p, i) => `${i+1}. ${p.name} - ${p.price} CHF - ${p.shopName}`).join('\n')
+      : 'Keine passenden Produkte gefunden';
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1500,
+      system: systemPrompt,
+      messages: [{
+        role: 'user',
+        content: `User fragte: "${userMessage}"
+
+Geprüfte Produkte: ${totalChecked}
+Passende Produkte: ${matchingProducts.length}
+Ausgeschlossen: ${notMatchingCount}
+
+Produkte zum Zeigen:
+${productsText}
+
+Generiere die Antwort:`
+      }]
+    });
+
+    const fullResponse = response.content[0].text;
+    
+    // Extract JSON
+    let productReasons = null;
+    let hasMatchingProducts = true;
+    
+    const jsonMatch = fullResponse.match(/```json\s*([\s\S]*?)\s*```/);
+    if (jsonMatch) {
+      try {
+        const jsonData = JSON.parse(jsonMatch[1]);
+        productReasons = jsonData.productReasons || null;
+        hasMatchingProducts = jsonData.hasMatchingProducts !== false;
+      } catch (e) {}
+    }
+    
+    // Clean response
+    let cleanResponse = fullResponse.replace(/```json[\s\S]*?```/g, '').trim();
+    cleanResponse = cleanResponse.replace(/\*\*([^*]+)\*\*/g, '$1');
+    cleanResponse = cleanResponse.replace(/\*([^*]+)\*/g, '$1');
+    
     return {
-      question: 'Was genau suchst du?',
-      questionType: 'open_usage',
-      modelOptions: []
+      text: cleanResponse,
+      productReasons: productReasons,
+      hasMatchingProducts: hasMatchingProducts
     };
 
   } catch (error) {
-    console.error('❌ Follow-up question error:', error);
+    console.error('❌ Response Error:', error.message);
+    throw error;
+  }
+}
+
+// ============================================
+// FEEDBACK RESPONSE
+// ============================================
+
+async function generateFeedbackResponse(feedbackType, adjustments, originalQuery, newProducts) {
+  const messages = {
+    price: "Verstanden! Hier sind günstigere Optionen:",
+    brand: "Andere Marke? Kein Problem:",
+    alternatives: "Hier sind weitere Optionen:",
+    confirmation: "Super Wahl!",
+    rejection: "Kein Problem! Was genau suchst du?"
+  };
+  return messages[feedbackType] || "Hier sind angepasste Empfehlungen:";
+}
+
+// ============================================
+// FOLLOW-UP QUESTION
+// ============================================
+
+async function generateFollowUpQuestion(intent, conversationHistory) {
+  if (intent.follow_up_questions && intent.follow_up_questions.length > 0) {
     return {
-      question: 'Was genau suchst du?',
-      questionType: 'open_usage',
-      modelOptions: []
+      question: intent.follow_up_questions[0],
+      questionType: intent.questionType || 'open',
+      modelOptions: intent.modelOptions || []
     };
   }
+  return {
+    question: 'Was genau suchst du?',
+    questionType: 'open',
+    modelOptions: []
+  };
 }
 
 // ============================================
