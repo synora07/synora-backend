@@ -468,6 +468,36 @@ Antworte NUR mit JSON Array:
 }
 
 // ============================================
+// GENERATE FOLLOW-UP QUESTION
+// ============================================
+
+async function generateFollowUpQuestion(intent, conversationHistory = []) {
+  try {
+    if (intent.follow_up_questions && intent.follow_up_questions.length > 0) {
+      return {
+        question: intent.follow_up_questions[0],
+        questionType: intent.questionType,
+        modelOptions: intent.modelOptions || []
+      };
+    }
+
+    return {
+      question: 'Was genau suchst du?',
+      questionType: 'open_usage',
+      modelOptions: []
+    };
+
+  } catch (error) {
+    console.error('❌ Follow-up question error:', error);
+    return {
+      question: 'Was genau suchst du?',
+      questionType: 'open_usage',
+      modelOptions: []
+    };
+  }
+}
+
+// ============================================
 // EXPORTS
 // ============================================
 
@@ -475,6 +505,7 @@ module.exports = {
   analyzeUserIntent,
   generateProductResponse,
   generateFeedbackResponse,
+  generateFollowUpQuestion,
   analyzeProductValidity,
   SYNORA_SYSTEM_PROMPT
 };
