@@ -1,11 +1,111 @@
 // ============================================
-// SYNORA - User Preferences Model
-// Lernt von jedem User wie ChatGPT/Claude
+// SYNORA V2.0 - USER PREFERENCES MODEL
+// Personalisierung & Präferenzen
+// Aktiviert nach 7 bestätigten Bestellungen
 // ============================================
+
+'use strict';
 
 const mongoose = require('mongoose');
 
-const UserPreferencesSchema = new mongoose.Schema({
+// ==========================================
+// SUB-SCHEMAS
+// ==========================================
+
+// Shop-Bewertung Schema
+const shopBewertungSchema = new mongoose.Schema({
+  shopName: {
+    type: String,
+    required: true
+  },
+  score: {
+    type: Number,
+    default: 0,
+    min: -100,
+    max: 100
+  },
+  grund: {
+    type: String,
+    enum: ['favorit', 'gekauft', 'problem', 'fehler', 'manuell'],
+    default: 'manuell'
+  },
+  letztesUpdate: {
+    type: Date,
+    default: Date.now
+  }
+}, { _id: false });
+
+// Marken-Präferenz Schema
+const markenPraeferenzSchema = new mongoose.Schema({
+  marke: {
+    type: String,
+    required: true
+  },
+  score: {
+    type: Number,
+    default: 0,
+    min: -50,
+    max: 50
+  },
+  kategorie: String,
+  letztesUpdate: {
+    type: Date,
+    default: Date.now
+  }
+}, { _id: false });
+
+// Kategorie-Interesse Schema
+const kategorieInteresseSchema = new mongoose.Schema({
+  kategorie: {
+    type: String,
+    required: true
+  },
+  interesse: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 100
+  },
+  suchanfragen: {
+    type: Number,
+    default: 0
+  },
+  kaeufe: {
+    type: Number,
+    default: 0
+  }
+}, { _id: false });
+
+// Preis-Präferenz Schema
+const preisPraeferenzSchema = new mongoose.Schema({
+  kategorie: {
+    type: String,
+    required: true
+  },
+  minPreis: {
+    type: Number,
+    default: 0
+  },
+  maxPreis: {
+    type: Number,
+    default: 10000
+  },
+  durchschnitt: {
+    type: Number,
+    default: 0
+  }
+}, { _id: false });
+
+// ==========================================
+// HAUPT-SCHEMA
+// ==========================================
+
+const userPreferencesSchema = new mongoose.Schema({
+  
+  // ==========================================
+  // REFERENZ
+  // ==========================================
+  
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -14,222 +114,501 @@ const UserPreferencesSchema = new mongoose.Schema({
     index: true
   },
   
-  // ============================================
-  // LIEBLINGS-KATEGORIEN
-  // ============================================
-  categories: {
-    electronics: { score: { type: Number, default: 0 }, count: { type: Number, default: 0 } },
-    fashion: { score: { type: Number, default: 0 }, count: { type: Number, default: 0 } },
-    cosmetics: { score: { type: Number, default: 0 }, count: { type: Number, default: 0 } },
-    gaming: { score: { type: Number, default: 0 }, count: { type: Number, default: 0 } },
-    home: { score: { type: Number, default: 0 }, count: { type: Number, default: 0 } },
-    sports: { score: { type: Number, default: 0 }, count: { type: Number, default: 0 } }
-  },
-  favoriteCategory: String,
+  // ==========================================
+  // PERSONALISIERUNG STATUS
+  // ==========================================
   
-  // ============================================
-  // BUDGET (gelernt)
-  // ============================================
-  budget: {
-    avgMin: { type: Number, default: 0 },
-    avgMax: { type: Number, default: 500 },
-    currency: { type: String, default: 'CHF' },
-    range: { type: String, default: 'medium' }, // budget, medium, premium, luxury
-    dataPoints: { type: Number, default: 0 }
+  // Erst aktiv nach 7 bestätigten Bestellungen
+  istAktiv: {
+    type: Boolean,
+    default: false
   },
   
-  // ============================================
-  // LIEBLINGS-SHOPS
-  // ============================================
-  shops: [{
-    name: String,
-    clicks: { type: Number, default: 1 },
-    lastClick: Date
-  }],
-  
-  // ============================================
-  // LIEBLINGS-MARKEN
-  // ============================================
-  brands: [{
-    name: String,
-    clicks: { type: Number, default: 1 },
-    category: String
-  }],
-  
-  // ============================================
-  // SUCH-HISTORIE (letzte 50)
-  // ============================================
-  searches: [{
-    query: String,
-    category: String,
-    budget: { min: Number, max: Number },
-    timestamp: { type: Date, default: Date.now }
-  }],
-  
-  // ============================================
-  // KEYWORDS (oft gesucht)
-  // ============================================
-  keywords: [{
-    word: String,
-    count: { type: Number, default: 1 }
-  }],
-  
-  // ============================================
-  // PRODUKT-INTERESSEN
-  // ============================================
-  products: [{
-    name: String,
-    category: String,
-    price: Number,
-    clicks: { type: Number, default: 1 },
-    lastSeen: Date
-  }],
-  
-  // ============================================
-  // USER-STIL
-  // ============================================
-  style: {
-    prefersCheap: { type: Boolean, default: false },
-    prefersQuality: { type: Boolean, default: false },
-    prefersBrands: { type: Boolean, default: false },
-    prefersLocal: { type: Boolean, default: false }
+  // Anzahl Datenpunkte (je mehr, desto besser)
+  datenpunkte: {
+    type: Number,
+    default: 0
   },
   
-  // ============================================
-  // STATISTIKEN
-  // ============================================
-  stats: {
-    totalSearches: { type: Number, default: 0 },
-    totalClicks: { type: Number, default: 0 },
-    totalShopClicks: { type: Number, default: 0 },
-    firstSeen: { type: Date, default: Date.now },
-    lastActive: { type: Date, default: Date.now }
+  // ==========================================
+  // SHOP PRÄFERENZEN
+  // ==========================================
+  
+  // Lieblings-Shops (+10 pro Shop)
+  lieblingsShops: [shopBewertungSchema],
+  
+  // Problem-Shops (-20 pro Shop)
+  problemShops: [shopBewertungSchema],
+  
+  // Alle Shop-Bewertungen (Score-basiert)
+  shopScores: {
+    type: Map,
+    of: Number,
+    default: new Map()
+  },
+  
+  // ==========================================
+  // MARKEN PRÄFERENZEN
+  // ==========================================
+  
+  // Lieblings-Marken (+10 pro Marke)
+  lieblingsMarken: [markenPraeferenzSchema],
+  
+  // Gemiedene Marken
+  gemiedeneMarken: [markenPraeferenzSchema],
+  
+  // ==========================================
+  // KATEGORIE INTERESSEN
+  // ==========================================
+  
+  kategorieInteressen: [kategorieInteresseSchema],
+  
+  // ==========================================
+  // PREIS PRÄFERENZEN
+  // ==========================================
+  
+  preisPraeferenzen: [preisPraeferenzSchema],
+  
+  // Generelles Budget-Level
+  budgetLevel: {
+    type: String,
+    enum: ['budget', 'mittel', 'premium', 'luxus', 'unbekannt'],
+    default: 'unbekannt'
+  },
+  
+  // ==========================================
+  // QUALITÄTS PRÄFERENZEN
+  // ==========================================
+  
+  qualitaetsPrioritaet: {
+    type: String,
+    enum: ['preis', 'balance', 'qualitaet'],
+    default: 'balance'
+  },
+  
+  // Wichtigkeit verschiedener Faktoren (0-100)
+  wichtigkeit: {
+    preis: { type: Number, default: 50, min: 0, max: 100 },
+    qualitaet: { type: Number, default: 50, min: 0, max: 100 },
+    lieferzeit: { type: Number, default: 50, min: 0, max: 100 },
+    bewertungen: { type: Number, default: 50, min: 0, max: 100 },
+    nachhaltigkeit: { type: Number, default: 30, min: 0, max: 100 },
+    schweizHerkunft: { type: Number, default: 40, min: 0, max: 100 }
+  },
+  
+  // ==========================================
+  // SUCH-HISTORIE (anonymisiert)
+  // ==========================================
+  
+  letzteKategorien: [{
+    kategorie: String,
+    datum: { type: Date, default: Date.now }
+  }],
+  
+  // Häufige Suchbegriffe (für bessere Vorschläge)
+  haeufigeSuchbegriffe: [{
+    begriff: String,
+    anzahl: { type: Number, default: 1 },
+    letzteNutzung: { type: Date, default: Date.now }
+  }],
+  
+  // ==========================================
+  // FEEDBACK HISTORIE
+  // ==========================================
+  
+  feedbackCount: {
+    positiv: { type: Number, default: 0 },
+    negativ: { type: Number, default: 0 },
+    neutral: { type: Number, default: 0 }
+  },
+  
+  // ==========================================
+  // METADATA
+  // ==========================================
+  
+  erstelltAm: {
+    type: Date,
+    default: Date.now,
+    immutable: true
+  },
+  
+  aktualisiertAm: {
+    type: Date,
+    default: Date.now
+  },
+  
+  letzteAktivitaet: {
+    type: Date,
+    default: Date.now
   }
   
-}, { timestamps: true });
+}, {
+  timestamps: false,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
 
-// ============================================
-// METHODS
-// ============================================
+// ==========================================
+// INDEXES
+// ==========================================
 
-// Suche speichern und lernen
-UserPreferencesSchema.methods.learnFromSearch = function(query, category, budget) {
-  // Suche speichern
-  this.searches.unshift({ query, category, budget, timestamp: new Date() });
-  if (this.searches.length > 50) this.searches = this.searches.slice(0, 50);
-  
-  // Kategorie-Score erhöhen
-  if (category && this.categories[category]) {
-    this.categories[category].score += 1;
-    this.categories[category].count += 1;
-    this.updateFavoriteCategory();
-  }
-  
-  // Budget lernen
-  if (budget?.max) {
-    this.learnBudget(budget.min || 0, budget.max);
-  }
-  
-  // Keywords extrahieren
-  query.toLowerCase().split(/\s+/).forEach(word => {
-    if (word.length > 3) {
-      const existing = this.keywords.find(k => k.word === word);
-      if (existing) existing.count += 1;
-      else this.keywords.push({ word, count: 1 });
+userPreferencesSchema.index({ userId: 1 }, { unique: true });
+userPreferencesSchema.index({ istAktiv: 1 });
+
+// ==========================================
+// VIRTUALS
+// ==========================================
+
+// Personalisierungs-Qualität (0-100)
+userPreferencesSchema.virtual('personalisierungsQualitaet').get(function() {
+  // Basierend auf Datenpunkten
+  const maxPunkte = 100;
+  const qualitaet = Math.min(100, (this.datenpunkte / maxPunkte) * 100);
+  return Math.round(qualitaet);
+});
+
+// Top 3 Lieblings-Shops
+userPreferencesSchema.virtual('topShops').get(function() {
+  return (this.lieblingsShops || [])
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .map(s => s.shopName);
+});
+
+// Top 3 Lieblings-Marken
+userPreferencesSchema.virtual('topMarken').get(function() {
+  return (this.lieblingsMarken || [])
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .map(m => m.marke);
+});
+
+// ==========================================
+// PRE-SAVE MIDDLEWARE
+// ==========================================
+
+userPreferencesSchema.pre('save', function(next) {
+  this.aktualisiertAm = new Date();
+  next();
+});
+
+// ==========================================
+// INSTANCE METHODS
+// ==========================================
+
+/**
+ * Shop-Score aktualisieren
+ * 
+ * @param {string} shopName - Name des Shops
+ * @param {number} aenderung - Score-Änderung (+/-)
+ * @param {string} grund - Grund für Änderung
+ */
+userPreferencesSchema.methods.updateShopScore = async function(shopName, aenderung, grund = 'manuell') {
+  try {
+    if (!shopName || typeof aenderung !== 'number') {
+      return;
     }
-  });
-  this.keywords.sort((a, b) => b.count - a.count);
-  if (this.keywords.length > 50) this.keywords = this.keywords.slice(0, 50);
-  
-  this.stats.totalSearches += 1;
-  this.stats.lastActive = new Date();
+    
+    // Aktuellen Score holen
+    const aktuellerScore = this.shopScores.get(shopName) || 0;
+    const neuerScore = Math.max(-100, Math.min(100, aktuellerScore + aenderung));
+    
+    // Score speichern
+    this.shopScores.set(shopName, neuerScore);
+    
+    // In Listen aktualisieren
+    if (neuerScore >= 10) {
+      // Zu Lieblings-Shops hinzufügen
+      const existiert = this.lieblingsShops.find(s => s.shopName === shopName);
+      if (existiert) {
+        existiert.score = neuerScore;
+        existiert.letztesUpdate = new Date();
+      } else {
+        this.lieblingsShops.push({
+          shopName,
+          score: neuerScore,
+          grund,
+          letztesUpdate: new Date()
+        });
+      }
+      
+      // Aus Problem-Shops entfernen
+      this.problemShops = this.problemShops.filter(s => s.shopName !== shopName);
+      
+    } else if (neuerScore <= -10) {
+      // Zu Problem-Shops hinzufügen
+      const existiert = this.problemShops.find(s => s.shopName === shopName);
+      if (existiert) {
+        existiert.score = neuerScore;
+        existiert.letztesUpdate = new Date();
+      } else {
+        this.problemShops.push({
+          shopName,
+          score: neuerScore,
+          grund,
+          letztesUpdate: new Date()
+        });
+      }
+      
+      // Aus Lieblings-Shops entfernen
+      this.lieblingsShops = this.lieblingsShops.filter(s => s.shopName !== shopName);
+    }
+    
+    // Datenpunkt zählen
+    this.datenpunkte = (this.datenpunkte || 0) + 1;
+    this.letzteAktivitaet = new Date();
+    
+    await this.save();
+    
+    return neuerScore;
+    
+  } catch (error) {
+    console.error('updateShopScore Fehler:', error.message);
+    throw error;
+  }
 };
 
-// Budget lernen
-UserPreferencesSchema.methods.learnBudget = function(min, max) {
-  const dp = this.budget.dataPoints;
-  this.budget.avgMin = Math.round(((this.budget.avgMin * dp) + min) / (dp + 1));
-  this.budget.avgMax = Math.round(((this.budget.avgMax * dp) + max) / (dp + 1));
-  this.budget.dataPoints += 1;
-  
-  const avg = (this.budget.avgMin + this.budget.avgMax) / 2;
-  if (avg < 100) this.budget.range = 'budget';
-  else if (avg < 500) this.budget.range = 'medium';
-  else if (avg < 1500) this.budget.range = 'premium';
-  else this.budget.range = 'luxury';
+/**
+ * Marken-Präferenz aktualisieren
+ * 
+ * @param {string} marke - Markenname
+ * @param {number} aenderung - Score-Änderung
+ * @param {string} kategorie - Produktkategorie
+ */
+userPreferencesSchema.methods.updateMarkenPraeferenz = async function(marke, aenderung, kategorie = null) {
+  try {
+    if (!marke || typeof aenderung !== 'number') {
+      return;
+    }
+    
+    // Bestehende Präferenz finden
+    let praeferenz = this.lieblingsMarken.find(m => m.marke === marke);
+    
+    if (praeferenz) {
+      praeferenz.score = Math.max(-50, Math.min(50, praeferenz.score + aenderung));
+      praeferenz.letztesUpdate = new Date();
+    } else {
+      this.lieblingsMarken.push({
+        marke,
+        score: Math.max(-50, Math.min(50, aenderung)),
+        kategorie,
+        letztesUpdate: new Date()
+      });
+    }
+    
+    // Negative Marken in gemiedeneMarken verschieben
+    this.lieblingsMarken = this.lieblingsMarken.filter(m => {
+      if (m.score < 0) {
+        const existiert = this.gemiedeneMarken.find(gm => gm.marke === m.marke);
+        if (!existiert) {
+          this.gemiedeneMarken.push(m);
+        }
+        return false;
+      }
+      return true;
+    });
+    
+    this.datenpunkte = (this.datenpunkte || 0) + 1;
+    this.letzteAktivitaet = new Date();
+    
+    await this.save();
+    
+  } catch (error) {
+    console.error('updateMarkenPraeferenz Fehler:', error.message);
+    throw error;
+  }
 };
 
-// Shop-Klick speichern
-UserPreferencesSchema.methods.learnFromShopClick = function(shopName) {
-  const existing = this.shops.find(s => s.name.toLowerCase() === shopName.toLowerCase());
-  if (existing) {
-    existing.clicks += 1;
-    existing.lastClick = new Date();
-  } else {
-    this.shops.push({ name: shopName, clicks: 1, lastClick: new Date() });
+/**
+ * Kategorie-Interesse erhöhen
+ * 
+ * @param {string} kategorie - Kategorie
+ * @param {string} typ - 'suche' oder 'kauf'
+ */
+userPreferencesSchema.methods.kategorieInteresseErhoehen = async function(kategorie, typ = 'suche') {
+  try {
+    if (!kategorie) return;
+    
+    let interesse = this.kategorieInteressen.find(k => k.kategorie === kategorie);
+    
+    if (!interesse) {
+      interesse = {
+        kategorie,
+        interesse: 0,
+        suchanfragen: 0,
+        kaeufe: 0
+      };
+      this.kategorieInteressen.push(interesse);
+    }
+    
+    if (typ === 'suche') {
+      interesse.suchanfragen = (interesse.suchanfragen || 0) + 1;
+      interesse.interesse = Math.min(100, (interesse.interesse || 0) + 2);
+    } else if (typ === 'kauf') {
+      interesse.kaeufe = (interesse.kaeufe || 0) + 1;
+      interesse.interesse = Math.min(100, (interesse.interesse || 0) + 10);
+    }
+    
+    // Letzte Kategorien aktualisieren (max 10)
+    this.letzteKategorien = this.letzteKategorien || [];
+    this.letzteKategorien.unshift({ kategorie, datum: new Date() });
+    this.letzteKategorien = this.letzteKategorien.slice(0, 10);
+    
+    this.datenpunkte = (this.datenpunkte || 0) + 1;
+    this.letzteAktivitaet = new Date();
+    
+    await this.save();
+    
+  } catch (error) {
+    console.error('kategorieInteresseErhoehen Fehler:', error.message);
   }
-  this.shops.sort((a, b) => b.clicks - a.clicks);
-  if (this.shops.length > 20) this.shops = this.shops.slice(0, 20);
-  
-  this.stats.totalShopClicks += 1;
-  this.stats.lastActive = new Date();
 };
 
-// Produkt-Klick speichern
-UserPreferencesSchema.methods.learnFromProductClick = function(name, category, price, brand) {
-  const existing = this.products.find(p => p.name.toLowerCase() === name.toLowerCase());
-  if (existing) {
-    existing.clicks += 1;
-    existing.lastSeen = new Date();
-  } else {
-    this.products.unshift({ name, category, price, clicks: 1, lastSeen: new Date() });
+/**
+ * Suchbegriff registrieren
+ * 
+ * @param {string} begriff - Suchbegriff
+ */
+userPreferencesSchema.methods.suchbegriffRegistrieren = async function(begriff) {
+  try {
+    if (!begriff || begriff.length < 2) return;
+    
+    const normalisiert = begriff.toLowerCase().trim();
+    
+    this.haeufigeSuchbegriffe = this.haeufigeSuchbegriffe || [];
+    
+    let eintrag = this.haeufigeSuchbegriffe.find(s => s.begriff === normalisiert);
+    
+    if (eintrag) {
+      eintrag.anzahl = (eintrag.anzahl || 0) + 1;
+      eintrag.letzteNutzung = new Date();
+    } else {
+      this.haeufigeSuchbegriffe.push({
+        begriff: normalisiert,
+        anzahl: 1,
+        letzteNutzung: new Date()
+      });
+    }
+    
+    // Max 50 Begriffe behalten
+    this.haeufigeSuchbegriffe = this.haeufigeSuchbegriffe
+      .sort((a, b) => b.anzahl - a.anzahl)
+      .slice(0, 50);
+    
+    this.letzteAktivitaet = new Date();
+    
+    await this.save();
+    
+  } catch (error) {
+    console.error('suchbegriffRegistrieren Fehler:', error.message);
   }
-  if (this.products.length > 30) this.products = this.products.slice(0, 30);
-  
-  // Marke lernen
-  if (brand) {
-    const existingBrand = this.brands.find(b => b.name.toLowerCase() === brand.toLowerCase());
-    if (existingBrand) existingBrand.clicks += 1;
-    else this.brands.push({ name: brand, clicks: 1, category });
-    this.brands.sort((a, b) => b.clicks - a.clicks);
-    if (this.brands.length > 20) this.brands = this.brands.slice(0, 20);
-  }
-  
-  // Kategorie erhöhen
-  if (category && this.categories[category]) {
-    this.categories[category].score += 2;
-    this.updateFavoriteCategory();
-  }
-  
-  // Preis → Budget lernen
-  if (price) this.learnBudget(price * 0.5, price * 1.5);
-  
-  this.stats.totalClicks += 1;
-  this.stats.lastActive = new Date();
 };
 
-// Favorite Category updaten
-UserPreferencesSchema.methods.updateFavoriteCategory = function() {
-  let top = null, topScore = 0;
-  for (const [cat, data] of Object.entries(this.categories)) {
-    if (data.score > topScore) { topScore = data.score; top = cat; }
+/**
+ * Personalisierung für Empfehlungen holen
+ * 
+ * @returns {Object} Personalisierungs-Daten
+ */
+userPreferencesSchema.methods.getPersonalisierungFuerEmpfehlung = function() {
+  // Wenn nicht aktiv, leere Personalisierung
+  if (!this.istAktiv) {
+    return {
+      aktiv: false,
+      shopBonus: {},
+      shopMalus: {},
+      markenBonus: [],
+      markenMalus: [],
+      kategorien: [],
+      wichtigkeit: this.wichtigkeit
+    };
   }
-  this.favoriteCategory = top;
-};
-
-// Profil für KI generieren
-UserPreferencesSchema.methods.getAIProfile = function() {
+  
+  // Shop Boni/Mali aus Map
+  const shopBonus = {};
+  const shopMalus = {};
+  
+  for (const [shop, score] of this.shopScores) {
+    if (score > 0) {
+      shopBonus[shop] = score;
+    } else if (score < 0) {
+      shopMalus[shop] = Math.abs(score);
+    }
+  }
+  
   return {
-    favoriteCategory: this.favoriteCategory,
-    budgetRange: this.budget.range,
-    avgBudget: { min: this.budget.avgMin, max: this.budget.avgMax, currency: this.budget.currency },
-    topShops: this.shops.slice(0, 5).map(s => s.name),
-    topBrands: this.brands.slice(0, 5).map(b => b.name),
-    topKeywords: this.keywords.slice(0, 10).map(k => k.word),
-    recentSearches: this.searches.slice(0, 5).map(s => s.query),
-    totalSearches: this.stats.totalSearches,
-    isNewUser: this.stats.totalSearches < 5
+    aktiv: true,
+    qualitaet: this.personalisierungsQualitaet,
+    shopBonus,
+    shopMalus,
+    topShops: this.topShops,
+    markenBonus: this.lieblingsMarken
+      .filter(m => m.score > 0)
+      .map(m => ({ marke: m.marke, score: m.score })),
+    markenMalus: this.gemiedeneMarken
+      .map(m => ({ marke: m.marke, score: Math.abs(m.score) })),
+    topMarken: this.topMarken,
+    kategorien: this.kategorieInteressen
+      .sort((a, b) => b.interesse - a.interesse)
+      .slice(0, 5)
+      .map(k => k.kategorie),
+    budgetLevel: this.budgetLevel,
+    wichtigkeit: this.wichtigkeit
   };
 };
 
-module.exports = mongoose.model('UserPreferences', UserPreferencesSchema);
+// ==========================================
+// STATIC METHODS
+// ==========================================
+
+/**
+ * Preferences für User holen oder erstellen
+ * 
+ * @param {string} userId - User ID
+ * @returns {Promise<UserPreferences>}
+ */
+userPreferencesSchema.statics.getOrCreate = async function(userId) {
+  try {
+    let prefs = await this.findOne({ userId });
+    
+    if (!prefs) {
+      prefs = await this.create({ userId });
+    }
+    
+    return prefs;
+    
+  } catch (error) {
+    console.error('getOrCreate Fehler:', error.message);
+    
+    // Bei Duplicate-Error: erneut suchen
+    if (error.code === 11000) {
+      return await this.findOne({ userId });
+    }
+    
+    throw error;
+  }
+};
+
+/**
+ * Personalisierung aktivieren
+ * 
+ * @param {string} userId - User ID
+ */
+userPreferencesSchema.statics.aktivieren = async function(userId) {
+  try {
+    const prefs = await this.getOrCreate(userId);
+    prefs.istAktiv = true;
+    await prefs.save();
+    return prefs;
+  } catch (error) {
+    console.error('aktivieren Fehler:', error.message);
+    throw error;
+  }
+};
+
+// ==========================================
+// MODEL ERSTELLEN & EXPORTIEREN
+// ==========================================
+
+const UserPreferences = mongoose.model('UserPreferences', userPreferencesSchema);
+
+module.exports = UserPreferences;

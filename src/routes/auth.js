@@ -1,300 +1,134 @@
 // ============================================
 // SYNORA - Auth Routes
-// Registration, Login, Email Verification
+// ============================================
+//
+// Aenderungen gegenueber V1:
+// 1. Kein bcrypt.hash hier mehr - das macht ausschliesslich das Model.
+//    Vorher wurde doppelt gehasht und der Login schlug immer fehl.
+// 2. Beim Login wird das Passwort mit +password geladen,
+//    sonst ist das Feld leer (select: false).
+// 3. /me nutzt die zentrale Auth-Middleware.
 // ============================================
 
-var express = require('express');
-var router = express.Router();
-var bcrypt = require('bcryptjs');
-var jwt = require('jsonwebtoken');
-var crypto = require('crypto');
-var User = require('../models/User');
-var emailService = require('../services/emailService');
+'use strict';
+
+const express = require('express');
+const router = express.Router();
+const jwt = require('jsonwebtoken');
+
+const User = require('../models/User');
+const { requireAuth } = require('../middleware/auth');
+
+const TOKEN_GUELTIG = '7d';
+
+function baueToken(user) {
+  return jwt.sign(
+    { userId: user._id, email: user.email },
+    process.env.JWT_SECRET,
+    { expiresIn: TOKEN_GUELTIG }
+  );
+}
 
 // ============================================
 // REGISTER - POST /api/auth/register
 // ============================================
-
-router.post('/register', async function(req, res) {
+router.post('/register', async (req, res, next) => {
   try {
-    var firstname = req.body.firstname;
-    var lastname = req.body.lastname;
-    var email = req.body.email;
-    var password = req.body.password;
-    var birthdate = req.body.birthdate;
+    const { firstname, lastname, email, password } = req.body;
 
-    console.log('📝 Registration attempt for:', email);
-
-    // Check if user already exists
-    var existingUser = await User.findOne({ email: email.toLowerCase() });
-    if (existingUser) {
-      console.log('❌ User already exists:', email);
-      return res.status(400).json({ error: 'Diese E-Mail ist bereits registriert' });
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email und Passwort erforderlich' });
     }
 
-    // Hash password
-    var salt = await bcrypt.genSalt(10);
-    var hashedPassword = await bcrypt.hash(password, salt);
+    if (String(password).length < 8) {
+      return res.status(400).json({ error: 'Passwort muss mindestens 8 Zeichen haben' });
+    }
 
-    // Create verification token
-    var verificationToken = crypto.randomBytes(32).toString('hex');
-    var verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    if (await User.emailExists(email)) {
+      return res.status(409).json({ error: 'Email bereits registriert' });
+    }
 
-    // Create new user
-    var newUser = new User({
-      firstname: firstname,
-      lastname: lastname,
-      email: email.toLowerCase(),
-      password: hashedPassword,
-      birthdate: birthdate,
-      verified: false,
-      verificationToken: verificationToken,
-      verificationExpires: verificationExpires,
-      createdAt: new Date()
+    // Klartext uebergeben - das Model hasht beim Speichern
+    const neu = new User({
+      firstname: firstname || '',
+      lastname: lastname || '',
+      email: String(email).toLowerCase().trim(),
+      password,
+      isEmailVerified: true // solange die Mail-Verifizierung nicht aktiv ist
     });
 
-    await newUser.save();
-    console.log('✅ User created:', email);
+    await neu.save();
 
-    // Send verification email
-    try {
-      await emailService.sendVerificationEmail(
-        email,
-        firstname,
-        verificationToken
-      );
-      console.log('✅ Verification email sent to:', email);
-    } catch (emailError) {
-      console.error('⚠️ Could not send verification email:', emailError.message);
-      // Continue anyway - user can request new verification email later
-    }
+    // Direkt eingeloggt weiter - eine Huerde weniger
+    const token = baueToken(neu);
 
     res.status(201).json({
       success: true,
-      message: 'Registrierung erfolgreich! Bitte prüfe deine E-Mails um dein Konto zu bestätigen.',
-      requiresVerification: true
+      message: 'Registrierung erfolgreich',
+      token,
+      user: neu.toSafeObject()
     });
-
   } catch (error) {
-    console.error('❌ Registration error:', error);
-    res.status(500).json({ error: 'Registrierung fehlgeschlagen' });
-  }
-});
-
-// ============================================
-// VERIFY EMAIL - GET /api/auth/verify/:token
-// ============================================
-
-router.get('/verify/:token', async function(req, res) {
-  try {
-    var token = req.params.token;
-    console.log('🔍 Verification attempt with token:', token.substring(0, 10) + '...');
-
-    // Find user with this token
-    var user = await User.findOne({
-      verificationToken: token,
-      verificationExpires: { $gt: new Date() }
-    });
-
-    if (!user) {
-      console.log('❌ Invalid or expired verification token');
-      return res.status(400).json({ error: 'Ungültiger oder abgelaufener Bestätigungslink' });
+    if (error.name === 'ValidationError') {
+      const erste = Object.values(error.errors)[0];
+      return res.status(400).json({ error: erste ? erste.message : 'Ungueltige Eingabe' });
     }
-
-    // Verify user
-    user.verified = true;
-    user.verificationToken = undefined;
-    user.verificationExpires = undefined;
-    await user.save();
-
-    console.log('✅ User verified:', user.email);
-
-    res.json({
-      success: true,
-      message: 'E-Mail erfolgreich bestätigt! Du kannst dich jetzt einloggen.'
-    });
-
-  } catch (error) {
-    console.error('❌ Verification error:', error);
-    res.status(500).json({ error: 'Bestätigung fehlgeschlagen' });
-  }
-});
-
-// ============================================
-// RESEND VERIFICATION - POST /api/auth/resend-verification
-// ============================================
-
-router.post('/resend-verification', async function(req, res) {
-  try {
-    var email = req.body.email;
-
-    var user = await User.findOne({ email: email.toLowerCase() });
-
-    if (!user) {
-      // Don't reveal if user exists
-      return res.json({ success: true, message: 'Falls ein Konto existiert, wurde eine neue E-Mail gesendet.' });
+    if (error.code === 11000) {
+      return res.status(409).json({ error: 'Email bereits registriert' });
     }
-
-    if (user.verified) {
-      return res.status(400).json({ error: 'Dieses Konto ist bereits bestätigt' });
-    }
-
-    // Create new verification token
-    var verificationToken = crypto.randomBytes(32).toString('hex');
-    user.verificationToken = verificationToken;
-    user.verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    await user.save();
-
-    // Send new verification email
-    await emailService.sendVerificationEmail(
-      user.email,
-      user.firstname,
-      verificationToken
-    );
-
-    res.json({ success: true, message: 'Neue Bestätigungs-E-Mail wurde gesendet.' });
-
-  } catch (error) {
-    console.error('❌ Resend verification error:', error);
-    res.status(500).json({ error: 'Fehler beim Senden der E-Mail' });
+    next(error);
   }
 });
 
 // ============================================
 // LOGIN - POST /api/auth/login
 // ============================================
-
-router.post('/login', async function(req, res) {
+router.post('/login', async (req, res, next) => {
   try {
-    var email = req.body.email;
-    var password = req.body.password;
+    const { email, password } = req.body;
 
-    console.log('🔐 Login attempt for:', email);
-
-    // Find user
-    var user = await User.findOne({ email: email.toLowerCase() });
-
-    if (!user) {
-      console.log('❌ User not found:', email);
-      return res.status(401).json({ error: 'E-Mail oder Passwort falsch' });
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email und Passwort erforderlich' });
     }
 
-    // Check if verified
-    if (!user.verified) {
-      console.log('⚠️ User not verified:', email);
-      return res.status(403).json({ 
-        error: 'Bitte bestätige zuerst deine E-Mail-Adresse',
-        requiresVerification: true,
-        email: email
-      });
+    // mitPasswort = true, sonst ist das Feld wegen select:false leer
+    const user = await User.findByEmail(email, true);
+
+    // Dieselbe Meldung fuer beide Faelle, damit niemand herausfinden
+    // kann, welche Adressen registriert sind
+    if (!user || !(await user.comparePassword(password))) {
+      return res.status(401).json({ error: 'Email oder Passwort falsch' });
     }
 
-    // Check password
-    var isMatch = await bcrypt.compare(password, user.password);
-
-    if (!isMatch) {
-      console.log('❌ Wrong password for:', email);
-      return res.status(401).json({ error: 'E-Mail oder Passwort falsch' });
+    if (!user.isActive) {
+      return res.status(403).json({ error: 'Konto ist deaktiviert' });
     }
 
-    // Create JWT token
-    var token = jwt.sign(
-      { userId: user._id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    console.log('✅ Login successful:', email);
+    await user.registerLogin();
 
     res.json({
       success: true,
-      token: token,
-      user: {
-        id: user._id,
-        firstname: user.firstname,
-        lastname: user.lastname,
-        email: user.email
-      }
+      token: baueToken(user),
+      user: user.toSafeObject()
     });
-
   } catch (error) {
-    console.error('❌ Login error:', error);
-    res.status(500).json({ error: 'Login fehlgeschlagen' });
+    next(error);
   }
 });
 
 // ============================================
-// FORGOT PASSWORD - POST /api/auth/forgot-password
+// ME - GET /api/auth/me
 // ============================================
-
-router.post('/forgot-password', async function(req, res) {
-  try {
-    var email = req.body.email;
-    console.log('🔑 Password reset request for:', email);
-
-    var user = await User.findOne({ email: email.toLowerCase() });
-
-    // Always return success (security - don't reveal if user exists)
-    if (!user) {
-      return res.json({ success: true, message: 'Falls ein Konto existiert, wurde eine E-Mail gesendet.' });
-    }
-
-    // Create reset token
-    var resetToken = crypto.randomBytes(32).toString('hex');
-    user.resetPasswordToken = resetToken;
-    user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-    await user.save();
-
-    // Send reset email
-    await emailService.sendPasswordResetEmail(
-      user.email,
-      user.firstname,
-      resetToken
-    );
-
-    console.log('✅ Password reset email sent to:', email);
-
-    res.json({ success: true, message: 'E-Mail zum Zurücksetzen wurde gesendet.' });
-
-  } catch (error) {
-    console.error('❌ Forgot password error:', error);
-    res.status(500).json({ error: 'Fehler beim Senden der E-Mail' });
-  }
+router.get('/me', requireAuth, async (req, res) => {
+  res.json({ user: req.user.toSafeObject() });
 });
 
 // ============================================
-// RESET PASSWORD - POST /api/auth/reset-password
+// LOGOUT - POST /api/auth/logout
 // ============================================
-
-router.post('/reset-password', async function(req, res) {
-  try {
-    var token = req.body.token;
-    var newPassword = req.body.password;
-
-    var user = await User.findOne({
-      resetPasswordToken: token,
-      resetPasswordExpires: { $gt: new Date() }
-    });
-
-    if (!user) {
-      return res.status(400).json({ error: 'Ungültiger oder abgelaufener Reset-Link' });
-    }
-
-    // Hash new password
-    var salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(newPassword, salt);
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpires = undefined;
-    await user.save();
-
-    console.log('✅ Password reset successful for:', user.email);
-
-    res.json({ success: true, message: 'Passwort erfolgreich geändert!' });
-
-  } catch (error) {
-    console.error('❌ Reset password error:', error);
-    res.status(500).json({ error: 'Passwort ändern fehlgeschlagen' });
-  }
+router.post('/logout', (req, res) => {
+  // Tokens sind zustandslos - das Frontend loescht ihn aus dem localStorage
+  res.json({ success: true, message: 'Ausgeloggt' });
 });
 
 module.exports = router;

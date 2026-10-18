@@ -1,103 +1,75 @@
-// ==========================================
-// SYNORA - Product Search Routes
-// /api/products/search
-// ==========================================
+// ============================================
+// SYNORA - Product Routes
+// ============================================
 
 const express = require('express');
 const router = express.Router();
-const { searchProducts, searchWithAnalysis } = require('../services/productSearchService');
 
-/**
- * GET /api/products/search
- * Sucht Produkte basierend auf Query
- * 
- * Query Parameters:
- * - q: Suchanfrage (required)
- * - country: Ländercode (optional, default: ch)
- * - limit: Anzahl Ergebnisse (optional, default: 3)
- */
+// Services laden
+let serpApiService, productSearchService;
+try {
+  serpApiService = require('../services/serpApiService');
+} catch (e) {}
+try {
+  productSearchService = require('../services/productSearchService');
+} catch (e) {}
+
+// ============================================
+// SEARCH PRODUCTS - GET /api/products/search
+// ============================================
 router.get('/search', async (req, res) => {
   try {
-    const { q, country = 'ch', limit = 3 } = req.query;
-
-    if (!q || q.trim() === '') {
-      return res.status(400).json({
-        success: false,
-        error: 'Suchanfrage (q) ist erforderlich'
-      });
-    }
-
-    console.log(`\n🛒 SYNORA Produktsuche: "${q}"`);
-
-    const result = await searchWithAnalysis(q.trim(), country, parseInt(limit));
-
-    res.json(result);
-
-  } catch (error) {
-    console.error('❌ Search Route Error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Produktsuche fehlgeschlagen',
-      message: error.message
-    });
-  }
-});
-
-/**
- * POST /api/products/search
- * Sucht Produkte mit erweiterten Optionen
- */
-router.post('/search', async (req, res) => {
-  try {
-    const { query, country = 'ch', limit = 3, preferences = {} } = req.body;
-
-    if (!query || query.trim() === '') {
-      return res.status(400).json({
-        success: false,
-        error: 'Suchanfrage ist erforderlich'
-      });
-    }
-
-    console.log(`\n🛒 SYNORA Produktsuche (POST): "${query}"`);
-
-    const result = await searchWithAnalysis(query.trim(), country, preferences);
-
-    res.json(result);
-
-  } catch (error) {
-    console.error('❌ Search Route Error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Produktsuche fehlgeschlagen',
-      message: error.message
-    });
-  }
-});
-
-/**
- * GET /api/products/test
- * Test-Endpoint um zu prüfen ob API funktioniert
- */
-router.get('/test', async (req, res) => {
-  try {
-    console.log('🧪 Test-Suche wird ausgeführt...');
+    const { q, limit = 6 } = req.query;
     
-    const result = await searchProducts('iPhone 15', 'ch', 2);
+    if (!q) {
+      return res.status(400).json({ error: 'Suchbegriff fehlt' });
+    }
+
+    let products = [];
+    
+    // SerpAPI verwenden
+    if (serpApiService && serpApiService.searchRealProducts) {
+      products = await serpApiService.searchRealProducts(q, parseInt(limit));
+    }
     
     res.json({
-      success: true,
-      message: 'SerpAPI funktioniert!',
-      testResults: result.length,
-      products: result
+      query: q,
+      count: products?.length || 0,
+      products: products || []
     });
 
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: 'API Test fehlgeschlagen',
-      message: error.message
-    });
+    console.error('Product Search Error:', error);
+    res.status(500).json({ error: 'Suche fehlgeschlagen' });
   }
+});
+
+// ============================================
+// GET PRODUCT BY ID - GET /api/products/:id
+// ============================================
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Hier könnte man Produkt aus DB laden
+    res.json({
+      id,
+      message: 'Produkt-Details nicht verfügbar'
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: 'Fehler' });
+  }
+});
+
+// ============================================
+// GET TRENDING - GET /api/products/trending
+// ============================================
+router.get('/trending', async (req, res) => {
+  res.json({
+    trending: [],
+    message: 'Trending Produkte kommen bald'
+  });
 });
 
 module.exports = router;

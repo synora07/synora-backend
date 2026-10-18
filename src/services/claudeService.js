@@ -1,480 +1,563 @@
-// SYNORA Backend - Claude AI Service
-// ⭐ VERTRAUEN = RICHTIGE PRODUKTE!
+// ============================================
+// SYNORA V2.0 - CLAUDE AI SERVICE
+// ============================================
+//
+// Wichtigste Aenderung gegenueber V1:
+// Claude bekommt Produkte MIT ID und muss IDs zurueckgeben.
+// Damit entfaellt das Raten ueber Produktnamen im Controller -
+// die Ursache fuer fehlende Bilder, fehlende Preise und
+// Links, die ins Leere fuehren.
 // ============================================
 
-const Anthropic = require('@anthropic-ai/sdk');
+'use strict';
 
-const anthropic = new Anthropic({
-  apiKey: process.env.CLAUDE_API_KEY,
-});
+const axios = require('axios');
+const crypto = require('crypto');
 
-// ============================================
-// SYNORA SYSTEM PROMPT - STRENGE PRODUKT-PRÜFUNG
-// ============================================
+// ==========================================
+// KONFIGURATION
+// ==========================================
 
-const SYNORA_SYSTEM_PROMPT = `Du bist SYNORA, ein KI-Kaufberater für die Schweiz.
+// Modelle ueber .env einstellbar, damit du zwischen guenstig und stark
+// wechseln kannst, ohne Code zu aendern.
+// Aktuelle Modell-IDs: https://docs.claude.com/en/docs/about-claude/models/overview
+const MODELL_SCHNELL = process.env.CLAUDE_MODEL_SCHNELL || 'claude-haiku-4-5-20251001';
+const MODELL_STARK = process.env.CLAUDE_MODEL_STARK || 'claude-haiku-4-5-20251001';
 
-=============================================================
-🎯 OBERSTE REGEL: VERTRAUEN DURCH RICHTIGE PRODUKTE!
-=============================================================
+const CLAUDE_CONFIG = {
+  apiUrl: 'https://api.anthropic.com/v1/messages',
+  model: MODELL_SCHNELL,
+  maxTokens: 2048,
+  timeout: 30000,
+  maxRetries: 2
+};
 
-Der User VERTRAUT dir. Du darfst dieses Vertrauen NIEMALS missbrauchen!
+// Preise in USD pro 1 Mio Token.
+// Vor dem Launch gegen https://docs.claude.com/en/docs/about-claude/pricing pruefen.
+const PREISE_PRO_MTOK = {
+  'claude-haiku-4-5-20251001': { input: 1.0, output: 5.0 },
+  standard: { input: 3.0, output: 15.0 }
+};
 
-VERTRAUEN bedeutet:
-- Zeige NUR Produkte die WIRKLICH zur Anfrage passen
-- Sage EHRLICH wenn nichts passt
-- Erkläre WARUM ein Produkt passt oder nicht passt
-- NIEMALS ein falsches Produkt empfehlen nur um etwas zu zeigen!
+const MAX_PRODUKTE_IM_PROMPT = 12;
 
-=============================================================
-🔍 STRENGE PRODUKT-PRÜFUNG
-=============================================================
-
-VOR jeder Empfehlung MUSST du prüfen:
-
-1. GAMING-ANFRAGEN:
-   ✗ Chromebook → KANN NICHT GAMEN (Chrome OS, keine GPU)
-   ✗ MacBook → Die meisten PC-Spiele laufen NICHT
-   ✗ Tablet → Zu schwach für AAA-Games
-   ✗ Office-Laptop → Keine Gaming-GPU
-   ✓ Gaming-Laptop mit GTX/RTX → RICHTIG!
-   ✓ Gaming-PC mit dedizierter GPU → RICHTIG!
-
-2. BETRIEBSSYSTEM:
-   User will iPhone → NUR iPhone zeigen (kein Android!)
-   User will Android → NUR Android zeigen (kein iPhone!)
-   User will Windows → NUR Windows zeigen (kein Mac, kein ChromeOS!)
-   User will Mac → NUR Mac zeigen
-
-3. SPEZIFIKATIONEN:
-   User sagt "16GB RAM" → Produkt MUSS 16GB haben
-   User sagt "256GB Speicher" → Produkt MUSS 256GB haben
-   User sagt "gute Kamera" → Produkt MUSS gute Kamera haben
-
-4. BUDGET:
-   User sagt "unter 1000 CHF" → Produkt MUSS unter 1000 CHF sein!
-   Produkt kostet 1200 CHF → NICHT empfehlen!
-
-5. MARKE:
-   User sagt "Samsung" → NUR Samsung zeigen
-   User sagt "kein Apple" → KEIN Apple zeigen!
-
-=============================================================
-❌ WENN PRODUKT NICHT PASST
-=============================================================
-
-SAGE ES EHRLICH! Beispiel:
-
-User: "Gaming Laptop für GTA 5"
-Gefundene Produkte: Chromebooks
-
-RICHTIGE ANTWORT:
-"🔍 Geprüft: 6 Produkte → 6 passen NICHT
-
-Ehrlich gesagt: Die gefundenen Chromebooks können GTA 5 nicht spielen.
-
-Das Problem:
-• Chromebooks haben Chrome OS, nicht Windows
-• Chromebooks haben keine Gaming-Grafikkarte
-• GTA 5 braucht Windows + GTX/RTX Grafikkarte
-
-Was du brauchst:
-• Gaming-Laptop mit Windows
-• Mindestens GTX 1650 oder RTX 3050
-• 16GB RAM, SSD
-• Budget: ab 800-1000 CHF
-
-💬 Soll ich nach echten Gaming-Laptops suchen?"
-
-=============================================================
-✅ WENN PRODUKT PASST
-=============================================================
-
-Erkläre WARUM es passt:
-
-"🔍 Geprüft: 6 Produkte → 3 passen perfekt
-
-Kurz gesagt: Für GTA 5 unter 1000 CHF ist der HP Victus die beste Wahl.
-
-Warum diese 3?
-• Alle haben Windows + Gaming-GPU
-• Alle unter deinem Budget
-• Alle von vertrauenswürdigen Schweizer Shops
-
-Warum nicht die anderen?
-• 2 waren Chromebooks (können nicht gamen)
-• 1 war über Budget (1200 CHF)"
-
-=============================================================
-JSON FORMAT FÜR INTENT
-=============================================================
-
-{
-  "category": "Elektronik",
-  "subcategory": "Gaming",
-  "keywords": "gaming laptop rtx windows",
-  "budget": 1000,
-  "requirements": ["Windows", "Gaming-GPU", "16GB RAM"],
-  "needsFollowUp": false,
-  "isFeedback": false,
-  "mustHave": {
-    "os": "Windows",
-    "gpu": "dedicated",
-    "minRAM": 16
-  },
-  "mustNotHave": {
-    "os": ["ChromeOS", "macOS"],
-    "type": ["Chromebook", "Tablet"]
-  }
+/**
+ * Fingerabdruck der Regeln.
+ *
+ * Warum: Der Bewertungs-Cache haelt 24 Stunden. Aenderst du eine
+ * Regel im Prompt, bekamst du trotzdem 24 Stunden lang die alten
+ * Bewertungen zurueck - und haettest gedacht, die neue Regel
+ * funktioniert nicht.
+ *
+ * Wird aus dem Prompt selbst berechnet. Du musst nichts hochzaehlen,
+ * es passiert von allein, sobald du eine Regel aenderst.
+ */
+function promptVersion() {
+  return crypto.createHash('sha1').update(SYSTEM_PROMPT).digest('hex').slice(0, 8);
 }
 
-=============================================================
-SYNORA MOTTO
-=============================================================
+// ==========================================
+// SYSTEM PROMPT
+// ==========================================
 
-"Lieber KEINE Empfehlung als eine FALSCHE Empfehlung."
-"Vertrauen ist wichtiger als Verkauf."
-"Ich zeige nur was WIRKLICH passt."
-`;
+const SYSTEM_PROMPT = `Du bist SYNORA, ein ehrlicher Einkaufsberater fuer den Schweizer und deutschen Markt.
 
-// ============================================
-// ANALYZE USER INTENT
-// ============================================
+DEINE 7 VERSPRECHEN:
+1. EHRLICH: Du sagst, was nicht passt.
+2. TRANSPARENT: Du erklaerst immer warum.
+3. BEWEISE: Fakten statt Meinung.
+4. KONSISTENT: Gleiche Logik fuer jeden.
+5. FUER DICH: Du optimierst fuer den Nutzer, nie fuer Provisionen.
+6. FEHLER ZUGEBEN: Bist du unsicher, sagst du es.
+7. VERTRAUEN: Du baust langfristiges Vertrauen auf.
 
-async function analyzeUserIntent(userMessage, conversationHistory = []) {
-  try {
-    console.log('🧠 Analyzing user intent...');
+REGELN, DIE DU NIE BRICHST:
 
-    const messages = [];
-    
-    if (conversationHistory && conversationHistory.length > 0) {
-      conversationHistory.forEach(msg => {
-        messages.push({
-          role: msg.role === 'user' ? 'user' : 'assistant',
-          content: msg.content
-        });
-      });
+A) NUR VORGEGEBENE PRODUKTE.
+   Du waehlst ausschliesslich aus der Liste unten und gibst deren
+   produkt_id exakt so zurueck, wie sie dasteht. Du erfindest nie ein
+   Produkt und nie eine ID. Steht ein Produkt nicht in der Liste,
+   existiert es fuer dich nicht.
+
+B) BUDGET IST EINE WAND.
+   Wird ein Budget genannt, empfiehlst du nichts darueber - keine
+   Ausnahme, auch nicht "nur knapp drueber". Findest du nichts
+   darunter, gibst du eine leere Empfehlungsliste zurueck und
+   schreibst in "zusammenfassung" ehrlich, was fehlt.
+
+C) JEDES PRODUKT HAT EINEN ECHTEN NACHTEIL.
+   "nachteile" hat mindestens einen konkreten Eintrag. Kein Fuellsatz,
+   kein verkappter Vorteil. Findest du wirklich keinen, schreibst du:
+   "Zu diesem Produkt liegt mir keine wiederkehrende Kritik vor."
+
+D) BEGRUENDUNG BEZIEHT SICH AUF DIESE ANFRAGE.
+   Jeder Eintrag in "gruende" nennt den konkreten Zweck oder das
+   Budget des Nutzers. Verboten sind allgemeine Saetze wie
+   "gute Qualitaet", "beliebtes Produkt", "verfuegbar in der Schweiz".
+   Gut: "16 GB RAM reichen fuer deine Bildbearbeitung".
+   Schlecht: "leistungsstarkes Geraet".
+
+E) KEINE ERFUNDENEN ZAHLEN.
+   Preis, Shop und Verfuegbarkeit stehen in der Liste. Du wiederholst
+   sie nicht und erfindest sie nicht.
+
+F) NIE EMPFEHLEN: Temu, Wish, Shein, AliExpress, DHgate.
+   Schweizer Shops (Digitec, Galaxus, Brack) bei sonst gleichem
+   Angebot bevorzugen.
+
+I) SHOP-QUALITAET BEACHTEN.
+   Bei jedem Produkt steht, was ueber den Shop bekannt ist. Ein
+   Schweizer Shop mit hoher Qualitaetsstufe ist bei aehnlichem Preis
+   die bessere Wahl - wegen Lieferzeit, Rueckgabe und Garantie.
+
+J) UNBEKANNTE SHOPS BENENNEN.
+   Steht bei einem Shop "unbekannt", pruefst du ihn nicht selbst - du
+   sagst es. Empfiehlst du ihn trotzdem, gehoert in "nachteile":
+   "Shop ist mir nicht bekannt – ich kann nichts über Rückgabe oder
+   Garantie sagen."
+
+K) PREIS IST KEIN VORTEIL AN SICH.
+   "Spart 180 CHF vom Budget" ist kein Grund, ein Produkt zu
+   empfehlen. Guenstig zaehlt nur zusammen mit erfuelltem Zweck.
+   Nennst du den Preis als Vorteil, dann so: "guenstiger und
+   erfuellt trotzdem X".
+
+L) DER ZWECK GEHT VOR DEM PREIS.
+   Nennt der Nutzer einen Zweck (Pendeln, Gaming, Studium), MUSS
+   mindestens eine deiner Empfehlungen diesen Zweck vollstaendig
+   erfuellen - auch wenn sie mehr kostet. Wer 200 CHF sagt und
+   Kopfhoerer zum Pendeln sucht, will Geraeuschunterdrueckung,
+   nicht drei billige Ohrhoerer ohne.
+   Die Kandidatenliste deckt die ganze Budgetspanne ab. Nutze sie.
+
+M) BEWERTUNGSZAHLEN EHRLICH EINORDNEN.
+   Unter 50 Bewertungen sagt der Durchschnitt wenig. Dann schreibst
+   du "erst wenige Bewertungen, die Zahl sagt noch wenig aus" -
+   NICHT "zeigt Zuverlaessigkeit". Ab etwa 500 Bewertungen darfst
+   du von einem belastbaren Bild sprechen.
+   Eine 5-Sterne-Wertung bei 31 Bewertungen ist kein Beweis.
+
+N) EIGENSCHAFTEN NUR MIT BELEG.
+   Behaupte eine Eigenschaft - Mikrofon, Geraeuschunterdrueckung,
+   wasserdicht, kabellos - NUR, wenn sie im Produkttitel oder in den
+   gelieferten Daten steht. Wissen aus deinem Gedaechtnis zaehlt
+   nicht, es kann falsch sein oder zu einer anderen Version gehoeren.
+   Passt ein Produkt nicht zum Zweck des Nutzers, dann empfiehl es
+   NICHT - rede es nicht passend. Ein DJ-Kopfhoerer wird kein Headset,
+   nur weil jemand telefonieren will.
+   Findest du nichts, das den Zweck erfuellt, sag genau das.
+   DAS GILT AUCH FUER NACHTEILE. Schreib nicht "kabelgebunden",
+   "kein Mikrofon" oder "nicht wasserdicht", wenn es nicht in den
+   Daten steht. "USB-C" im Titel kann der Ladeanschluss sein ODER
+   das Kabel - schliess daraus weder "kabellos" noch "mit Kabel".
+   Steht es nicht eindeutig da, lass die Eigenschaft weg. Ein erfundener Nachteil ist genauso falsch
+   wie ein erfundener Vorteil.
+
+O) NUR UEBER DEINE EMPFEHLUNGEN SPRECHEN.
+   Die Zusammenfassung erklaert, warum diese Produkte. Sie erzaehlt
+   NICHT, was du aussortiert hast, woher die anderen Treffer kamen
+   oder wie schwach die Auswahl war. Hoechstens EIN kurzer Satz,
+   wenn die Auswahl insgesamt duerftig war.
+   Die Zusammenfassung hat hoechstens drei Saetze.
+
+P) KAUF IM AUSLAND IST EIN NACHTEIL.
+   Steht bei einem Produkt ein Shop ausserhalb der Schweiz, gehoert
+   in "nachteile": "Bestellung aus dem Ausland - Zoll und
+   Mehrwertsteuer koennen dazukommen, die Rueckgabe ist aufwendiger."
+   Empfiehl einen Auslandsshop nur, wenn es in der Schweiz nichts
+   Vergleichbares gibt.
+
+Q) KEIN WIDERSPRUCH, KEIN SCHOENREDEN.
+   Ein Vorteil darf deinem eigenen Nachteil beim selben Produkt
+   nicht widersprechen. Schreibst du beim Nachteil "wippt beim Sport",
+   darf beim Vorteil nicht "sitzt beim Sport sicher" stehen.
+   Behaupte keine allgemeinen Regeln, nur damit ein Produkt passt.
+   Wenn keines der Produkte den Zweck wirklich erfuellt, sag das in
+   der Zusammenfassung ehrlich, statt eines passend zu reden.
+
+R) ECHTE UMLAUTE.
+   Schreib immer mit ä, ö, ü und ß: "für", "Rückgabe", "Qualität" -
+   nie "fuer", "Rueckgabe", "Qualitaet". Deine Texte liest ein
+   Schweizer Kunde, nicht ein Programm.
+
+S) DER BLICK NACH VORN.
+   Wenn dir Angaben zu Haltbarkeit, Akkulaufzeit oder bekannten
+   Maengeln vorliegen, rechne sie in die Empfehlung ein:
+   "Etwas teurer, dafuer musst du in zwei Jahren nicht nochmal
+   kaufen" oder "guenstig, aber der Akku laesst nach einem Jahr
+   nach - bei taeglicher Nutzung zahlst du dann zweimal."
+   Beziehe das auf die Nutzung, die der Nutzer genannt hat.
+   ABER: Nur mit Beleg. Liegen keine solchen Angaben vor, sag
+   nichts ueber Haltbarkeit. Ein erfundener Langzeit-Rat ist
+   schlimmer als gar keiner.
+
+T) GESICHERTE ANGABEN NUTZEN.
+   Steht bei einem Produkt "GESICHERTE ANGABEN", stuetze deine
+   Begruendungen darauf. Das sind Herstellerangaben und echte
+   Kundenbewertungen.
+   Ein Mangel aus einer echten Bewertung ist der beste Nachteil,
+   den du nennen kannst - besser als jede allgemeine Aussage.
+   Steht dort "X Prozent geben 1 oder 2 Sterne", ist das
+   aussagekraeftiger als der Durchschnitt. Ab etwa 10 Prozent
+   gehoert das in die Nachteile.
+   Fehlen die gesicherten Angaben, sag weniger - nicht mehr.
+
+U) SHOP-STUFE ENTSCHEIDET BEI GLEICHWERTIGKEIT.
+   Bei jedem Produkt steht eine SHOP-STUFE von 1 bis 6:
+     1  guter Schweizer Shop
+     2  Schweizer Shop, noch nicht bewertet
+     3  Amazon
+     4  Schweizer Shop, schwach bewertet
+     5  anderer Auslandsshop
+     6  unbekannt, kein Land erkennbar
+   Erfuellen zwei Produkte den Zweck gleich gut, gewinnt die
+   NIEDRIGERE Stufe - nicht der niedrigere Preis. Lieferzeit,
+   Rueckgabe und Garantie sind bei Stufe 1 gesichert, bei Stufe 6
+   nicht.
+   Gibt es in der Liste ueberhaupt ein Produkt mit Stufe 1 oder 2,
+   das den Zweck erfuellt, MUSS mindestens eine deiner drei
+   Empfehlungen von dort kommen.
+   Ein Produkt mit Stufe 6 gehoert nur auf Platz 1, wenn kein
+   Produkt mit Stufe 1 oder 2 den Zweck erfuellt - und dann sagst
+   du in der Zusammenfassung, warum.
+
+G) GUENSTIGER PRUEFEN.
+   Pruefe ausdruecklich, ob die guenstigere Variante fuer den
+   genannten Zweck reicht, und begruende deine Antwort darauf.
+
+ANTWORTFORMAT:
+Antworte AUSSCHLIESSLICH mit diesem JSON. Kein Text davor, keiner danach,
+keine Markdown-Zeichen.
+{
+  "empfehlungen": [
+    {
+      "rang": 1,
+      "produkt_id": "p_03",
+      "gruende": ["Bezug auf Zweck oder Budget", "zweiter Grund"],
+      "nachteile": ["konkreter Nachteil"],
+      "fuerWen": "Fuer wen passt es",
+      "synoraScore": 85
     }
-    
-    messages.push({ role: 'user', content: userMessage });
+  ],
+  "zusammenfassung": "Ein bis zwei Saetze an den Nutzer",
+  "warnung": null,
+  "alternativVorschlag": null
+}`;
 
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      system: SYNORA_SYSTEM_PROMPT + `
+// ==========================================
+// HAUPTFUNKTION
+// ==========================================
 
-Analysiere die User-Nachricht und antworte NUR mit JSON:
+/**
+ * @param {Object} params
+ * @param {string} params.query       - Suchanfrage des Nutzers
+ * @param {Array}  params.produkte    - Produkte MIT Feld `id` (z.B. "p_01")
+ * @param {Object} params.kontext     - { land, budget, zweck, kategorie }
+ * @param {string} params.modell      - optional: Modell fuer diesen Aufruf
+ */
+async function getProductRecommendation(params) {
+  const startTime = Date.now();
+  const {
+    query,
+    produkte = [],
+    personalisierung = null,
+    kontext = {},
+    modell = CLAUDE_CONFIG.model
+  } = params || {};
 
-{
-  "category": "Elektronik",
-  "subcategory": "Gaming / Smartphones / Laptops / etc.",
-  "keywords": "suchbegriffe für google shopping",
-  "budget": null oder Zahl,
-  "requirements": ["Requirement 1", "Requirement 2"],
-  "needsFollowUp": true/false,
-  "follow_up_questions": ["Frage falls nötig"],
-  "isFeedback": true/false,
-  "feedbackType": "price/brand/confirmation/null",
-  "needsNewSearch": true/false,
-  "mustHave": {
-    "os": "Windows/macOS/iOS/Android/any",
-    "gpu": "dedicated/integrated/any",
-    "minRAM": null oder Zahl
-  },
-  "mustNotHave": {
-    "os": [],
-    "type": []
-  }
-}
+  try {
+    const apiKey = process.env.CLAUDE_API_KEY;
+    if (!apiKey) {
+      console.error('[claude] CLAUDE_API_KEY nicht konfiguriert');
+      return createFallbackResponse('API nicht konfiguriert', startTime);
+    }
 
-WICHTIG:
-- Bei "Gaming" oder Spielen wie "GTA", "Fortnite", "FIFA":
-  → mustHave.os: "Windows"
-  → mustHave.gpu: "dedicated"
-  → mustNotHave.type: ["Chromebook", "Tablet"]
-  
-- Bei "iPhone": 
-  → mustHave.os: "iOS"
-  → mustNotHave.os: ["Android"]
+    if (!produkte.length) {
+      return createFallbackResponse('Keine Produkte zum Bewerten', startTime);
+    }
 
-- Bei "unter X CHF":
-  → budget: X
-`,
-      messages: messages
-    });
+    const erlaubteIds = new Set(produkte.map((p) => p.id).filter(Boolean));
+    const userPrompt = buildUserPrompt(query, produkte, personalisierung, kontext);
 
-    const responseText = response.content[0].text;
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    
-    if (jsonMatch) {
-      const intent = JSON.parse(jsonMatch[0]);
-      console.log('✅ Intent:', intent.keywords);
-      console.log('   MustHave:', intent.mustHave);
-      console.log('   MustNotHave:', intent.mustNotHave);
-      return intent;
+    const response = await callClaudeAPI(apiKey, userPrompt, modell);
+    const parsed = parseClaudeResponse(response);
+
+    // Erfundene IDs verwerfen - Regel A wird hier durchgesetzt,
+    // nicht nur erhofft.
+    const empfehlungen = [];
+    for (const emp of parsed.empfehlungen || []) {
+      if (!emp || !erlaubteIds.has(emp.produkt_id)) {
+        console.warn('[claude] Empfehlung mit unbekannter ID verworfen:', emp && emp.produkt_id);
+        continue;
+      }
+      empfehlungen.push(emp);
     }
 
     return {
-      category: 'Elektronik',
-      subcategory: 'Allgemein',
-      keywords: userMessage,
-      budget: null,
-      requirements: [],
-      needsFollowUp: false,
-      isFeedback: false,
-      mustHave: { os: 'any', gpu: 'any' },
-      mustNotHave: { os: [], type: [] }
+      success: true,
+      empfehlungen,
+      zusammenfassung: parsed.zusammenfassung || '',
+      warnung: parsed.warnung || null,
+      alternativVorschlag: parsed.alternativVorschlag || null,
+      verworfen: (parsed.empfehlungen || []).length - empfehlungen.length,
+      metrics: {
+        provider: 'claude',
+        model: modell,
+        antwortzeit: Date.now() - startTime,
+        tokensInput: (response.usage && response.usage.input_tokens) || 0,
+        tokensOutput: (response.usage && response.usage.output_tokens) || 0,
+        kosten: calculateCost(response.usage, modell)
+      }
     };
-
   } catch (error) {
-    console.error('❌ Intent Error:', error.message);
+    console.error('[claude] Fehler:', error.message);
+    return createFallbackResponse(error.message, startTime);
+  }
+}
+
+// ==========================================
+// PROMPT
+// ==========================================
+
+function buildUserPrompt(query, produkte, personalisierung, kontext) {
+  let prompt = `SUCHANFRAGE: "${query}"\n\n`;
+
+  if (kontext.budget) {
+    const waehrung = kontext.waehrung || 'CHF';
+    prompt += `BUDGET: maximal ${kontext.budget} ${waehrung}. `;
+    prompt += `Nichts darueber empfehlen (Regel B).\n`;
+  } else {
+    prompt += `BUDGET: nicht genannt.\n`;
+  }
+
+  if (kontext.zweck) prompt += `ZWECK: ${kontext.zweck}\n`;
+  if (kontext.land) prompt += `LAND: ${kontext.land}\n`;
+  if (kontext.kategorie) prompt += `KATEGORIE: ${kontext.kategorie}\n`;
+
+  prompt += `\nVERFUEGBARE PRODUKTE - waehle nur aus dieser Liste und gib die produkt_id zurueck:\n`;
+
+  produkte.slice(0, MAX_PRODUKTE_IM_PROMPT).forEach((p) => {
+    prompt += `\n[${p.id}] ${p.title || p.name || 'ohne Titel'}\n`;
+    prompt += `   Preis: ${p.price || 'unbekannt'}\n`;
+    const info = p.shopInfo;
+    if (info && info.bekannt) {
+      prompt += `   Shop: ${info.name} (${info.land || '?'}, Qualitaet: ${info.qualitaet}`;
+      prompt += info.abgewertet ? ', ABGEWERTET wegen Meldungen)\n' : ')\n';
+    } else {
+      prompt += `   Shop: ${p.source || p.shop || 'unbekannt'} (UNBEKANNT - nicht in der Shop-Datenbank)\n`;
+    }
+    // Die Stufe kommt aus dem Controller (shopStufe). Sie hier als
+    // Zahl hinzuschreiben ist wirksamer als jede Bitte im Regeltext:
+    // das Modell kann sie vergleichen, statt sie zu erraten.
+    if (typeof p.shopStufe === 'number') {
+      prompt += `   SHOP-STUFE: ${p.shopStufe} (1 ist am besten, 6 am schlechtesten)\n`;
+    }
+    // ---------- Produktwissen ----------
+    // Bauform, Akkulaufzeit, Sterneverteilung und echte
+    // Bewertungstexte. NUR was hier steht, darfst du behaupten -
+    // alles andere wird nachher automatisch gestrichen.
+    if (p.wissenText) {
+      prompt += `   GESICHERTE ANGABEN:\n`;
+      for (const zeile of String(p.wissenText).split('\n')) {
+        if (zeile.trim()) prompt += `     ${zeile.trim()}\n`;
+      }
+    }
+
+    if (p.rating) prompt += `   Bewertung: ${p.rating}`;
+    if (p.rating && p.reviews) prompt += ` aus ${p.reviews} Bewertungen`;
+    if (p.rating) prompt += `\n`;
+  });
+
+  if (personalisierung && personalisierung.aktiv) {
+    prompt += `\nNUTZER-PRAEFERENZEN (schwaecher als Budget und Zweck):\n`;
+    if (personalisierung.topMarken && personalisierung.topMarken.length) {
+      prompt += `- Marken: ${personalisierung.topMarken.join(', ')}\n`;
+    }
+    if (personalisierung.topShops && personalisierung.topShops.length) {
+      prompt += `- Shops: ${personalisierung.topShops.join(', ')}\n`;
+    }
+  }
+
+  prompt += `\nGib maximal 3 Empfehlungen zurueck, als reines JSON.`;
+  return prompt;
+}
+
+// ==========================================
+// API-AUFRUF
+// ==========================================
+
+async function callClaudeAPI(apiKey, userPrompt, modell, retryCount = 0) {
+  try {
+    const response = await axios.post(
+      CLAUDE_CONFIG.apiUrl,
+      {
+        model: modell || CLAUDE_CONFIG.model,
+        max_tokens: CLAUDE_CONFIG.maxTokens,
+        // Prompt-Caching: der feste Regeltext wird nur einmal bezahlt
+        system: [
+          {
+            type: 'text',
+            text: SYSTEM_PROMPT,
+            cache_control: { type: 'ephemeral' }
+          }
+        ],
+        messages: [
+          { role: 'user', content: userPrompt },
+          // Vorgabe der ersten Zeichen: erzwingt JSON statt Einleitungssatz
+          { role: 'assistant', content: '{' }
+        ]
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01'
+        },
+        timeout: CLAUDE_CONFIG.timeout
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    if (retryCount < CLAUDE_CONFIG.maxRetries) {
+      const wiederholbar =
+        error.code === 'ECONNRESET' ||
+        error.code === 'ETIMEDOUT' ||
+        (error.response && (error.response.status === 429 || error.response.status >= 500));
+
+      if (wiederholbar) {
+        console.log(`[claude] Wiederholung ${retryCount + 1}/${CLAUDE_CONFIG.maxRetries}`);
+        await sleep(1000 * (retryCount + 1));
+        return callClaudeAPI(apiKey, userPrompt, modell, retryCount + 1);
+      }
+    }
+
+    if (error.response) {
+      const status = error.response.status;
+      const message =
+        (error.response.data && error.response.data.error && error.response.data.error.message) ||
+        error.message;
+
+      if (status === 401) throw new Error('Claude API: Ungueltiger API Key');
+      if (status === 429) throw new Error('Claude API: Rate Limit erreicht');
+      if (status === 400) throw new Error(`Claude API: Ungueltige Anfrage - ${message}`);
+      throw new Error(`Claude API Fehler (${status}): ${message}`);
+    }
+
     throw error;
   }
 }
 
-// ============================================
-// ⭐ STRENGE PRODUKT-VALIDIERUNG
-// ============================================
+// ==========================================
+// ANTWORT PARSEN
+// ==========================================
 
-async function analyzeProductValidity(userQuery, products, intent) {
+function parseClaudeResponse(response) {
+  const leer = { empfehlungen: [], zusammenfassung: '' };
+
   try {
-    console.log('🔍 STRENGE Produkt-Validierung...');
+    let text = (response.content && response.content[0] && response.content[0].text) || '';
+    if (!text) return leer;
 
-    if (!products || products.length === 0) {
-      return [];
+    // Die Antwort beginnt wegen der Vorgabe ohne die erste Klammer
+    if (!text.trimStart().startsWith('{')) {
+      text = '{' + text;
     }
 
-    const systemPrompt = `Du bist ein STRENGER Produkt-Prüfer für SYNORA.
+    // Markdown-Zaeune entfernen, falls das Modell sie doch setzt
+    text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
 
-USER SUCHT: "${userQuery}"
-
-USER REQUIREMENTS:
-${intent ? JSON.stringify(intent.mustHave || {}) : 'Keine'}
-
-USER WILL NICHT:
-${intent ? JSON.stringify(intent.mustNotHave || {}) : 'Keine'}
-
-=============================================================
-STRENGE PRÜF-REGELN
-=============================================================
-
-GAMING-ANFRAGEN (GTA, Fortnite, Gaming, Spielen):
-- "Chromebook" im Namen → isMatch: FALSE (kann nicht gamen!)
-- "Chrome OS" → isMatch: FALSE
-- Kein "GTX", "RTX", "Radeon" erwähnt → isMatch: FALSE (keine Gaming-GPU!)
-- "Office", "Business" Laptop → isMatch: FALSE (keine Gaming-GPU!)
-- NUR wenn "Gaming", "GTX", "RTX", "Radeon" im Namen → isMatch: TRUE
-
-iPHONE-ANFRAGEN:
-- Alles ohne "iPhone" im Namen → isMatch: FALSE
-- "Samsung", "Xiaomi", "Android" → isMatch: FALSE
-
-BUDGET-PRÜFUNG:
-- Wenn User Budget hat und Produkt teurer ist → isMatch: FALSE
-
-=============================================================
-ANTWORTE NUR MIT JSON ARRAY:
-=============================================================
-
-[
-  {"index": 0, "isMatch": true, "reason": "Gaming-Laptop mit RTX 3050"},
-  {"index": 1, "isMatch": false, "reason": "Chromebook - kann nicht gamen!"},
-  {"index": 2, "isMatch": false, "reason": "Über Budget (1200 CHF > 1000 CHF)"}
-]`;
-
-    const productsText = products.map((p, i) => 
-      `${i}. ${p.name || p.title || 'Unbekannt'} - ${p.price || '?'} CHF - ${p.source || 'Shop'}`
-    ).join('\n');
-
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      system: systemPrompt,
-      messages: [{
-        role: 'user',
-        content: `PRÜFE STRENG ob diese Produkte zur Anfrage "${userQuery}" passen:\n\n${productsText}`
-      }]
-    });
-
-    const responseText = response.content[0].text;
-    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-    
-    if (jsonMatch) {
-      const results = JSON.parse(jsonMatch[0]);
-      
-      const matching = results.filter(r => r.isMatch).length;
-      const notMatching = results.filter(r => !r.isMatch).length;
-      
-      console.log(`✅ Validierung: ${matching} passen, ${notMatching} passen NICHT`);
-      
-      results.forEach(r => {
-        if (!r.isMatch) {
-          console.log(`   ❌ #${r.index}: ${r.reason}`);
-        }
-      });
-      
-      return results;
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      // Zweiter Versuch: von der ersten bis zur letzten Klammer
+      const von = text.indexOf('{');
+      const bis = text.lastIndexOf('}');
+      if (von !== -1 && bis > von) {
+        return JSON.parse(text.slice(von, bis + 1));
+      }
+      console.warn('[claude] Antwort enthaelt kein gueltiges JSON');
+      return leer;
     }
-
-    // Fallback
-    return products.map((p, idx) => ({
-      index: idx,
-      isMatch: true,
-      reason: 'Nicht geprüft'
-    }));
-
   } catch (error) {
-    console.error('❌ Validation Error:', error.message);
-    return products.map((p, idx) => ({
-      index: idx,
-      isMatch: true,
-      reason: 'Fehler bei Prüfung'
-    }));
+    console.error('[claude] Parse-Fehler:', error.message);
+    return leer;
   }
 }
 
-// ============================================
-// GENERATE PRODUCT RESPONSE
-// ============================================
+// ==========================================
+// HILFSFUNKTIONEN
+// ==========================================
 
-async function generateProductResponse(userMessage, products, conversationHistory, totalChecked, stats) {
-  try {
-    console.log('💬 Generating response...');
-
-    const matchingProducts = products.filter(p => p.isMatch !== false);
-    const notMatchingCount = totalChecked - matchingProducts.length;
-
-    const systemPrompt = `Du bist SYNORA. Generiere eine EHRLICHE Antwort.
-
-WICHTIG - FORMAT:
-1. Schreibe OHNE Markdown (kein **, kein *, kein #)
-2. Mache ECHTE Zeilenumbrüche nach jedem Abschnitt!
-3. Nutze • für Aufzählungen
-
-BEISPIEL FORMAT (mit Zeilenumbrüchen!):
-
-🔍 Geprüft: 6 Produkte → 3 ausgeschlossen → 3 passen perfekt
-
-Kurz gesagt: Für Gaming unter 1000 CHF sind diese 3 Laptops ideal.
-
-Warum diese?
-• Alle haben dedizierte Gaming-Grafikkarte
-• Alle unter deinem Budget
-• Alle von Schweizer Shops
-
-Warum nicht die anderen?
-• Office-Laptops: Keine Gaming-GPU
-• Chromebooks: Können keine PC-Spiele
-
-💬 Andere Option? Sag mir: "günstiger", "andere Marke" oder "Desktop"!
-
----
-
-WICHTIG: Nach jedem Abschnitt eine LEERE ZEILE!
-
-Am Ende JSON (wird nicht angezeigt):
-\`\`\`json
-{
-  "productReasons": [
-    {"index": 0, "reasons": ["Grund 1", "Grund 2"]},
-    {"index": 1, "reasons": ["Grund 1", "Grund 2"]},
-    {"index": 2, "reasons": ["Grund 1", "Grund 2"]}
-  ]
-}
-\`\`\``;
-
-    const productsText = products.length > 0 
-      ? products.map((p, i) => `${i+1}. ${p.name} - ${p.price} CHF - ${p.shopName}`).join('\n')
-      : 'Keine passenden Produkte';
-
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1500,
-      system: systemPrompt,
-      messages: [{
-        role: 'user',
-        content: `User: "${userMessage}"
-
-Geprüft: ${totalChecked} | Passend: ${matchingProducts.length} | Ausgeschlossen: ${notMatchingCount}
-
-Produkte:
-${productsText}
-
-Generiere Antwort MIT Zeilenumbrüchen:`
-      }]
-    });
-
-    const fullResponse = response.content[0].text;
-    
-    // Extract JSON
-    let productReasons = null;
-    const jsonMatch = fullResponse.match(/```json\s*([\s\S]*?)\s*```/);
-    if (jsonMatch) {
-      try {
-        const jsonData = JSON.parse(jsonMatch[1]);
-        productReasons = jsonData.productReasons || null;
-      } catch (e) {}
-    }
-    
-    // Clean response
-    let cleanResponse = fullResponse.replace(/```json[\s\S]*?```/g, '').trim();
-    cleanResponse = cleanResponse.replace(/\*\*([^*]+)\*\*/g, '$1');
-    cleanResponse = cleanResponse.replace(/\*([^*]+)\*/g, '$1');
-    
-    return {
-      text: cleanResponse,
-      productReasons: productReasons
-    };
-
-  } catch (error) {
-    console.error('❌ Response Error:', error.message);
-    throw error;
-  }
+function calculateCost(usage, modell) {
+  if (!usage) return 0;
+  const preise = PREISE_PRO_MTOK[modell] || PREISE_PRO_MTOK.standard;
+  const input = ((usage.input_tokens || 0) / 1000000) * preise.input;
+  const output = ((usage.output_tokens || 0) / 1000000) * preise.output;
+  return Math.round((input + output) * 1000000) / 1000000;
 }
 
-// ============================================
-// FEEDBACK RESPONSE
-// ============================================
-
-async function generateFeedbackResponse(feedbackType, adjustments, originalQuery, newProducts) {
-  const messages = {
-    price: "Verstanden! Hier sind günstigere Optionen:",
-    brand: "Andere Marke? Kein Problem:",
-    alternatives: "Hier sind weitere Optionen:",
-    confirmation: "Super Wahl!",
-    rejection: "Kein Problem! Was genau suchst du?"
-  };
-  return messages[feedbackType] || "Hier sind angepasste Empfehlungen:";
-}
-
-// ============================================
-// FOLLOW-UP QUESTION
-// ============================================
-
-async function generateFollowUpQuestion(intent, conversationHistory) {
-  if (intent.follow_up_questions && intent.follow_up_questions.length > 0) {
-    return {
-      question: intent.follow_up_questions[0],
-      questionType: intent.questionType || 'open',
-      modelOptions: intent.modelOptions || []
-    };
-  }
+function createFallbackResponse(grund, startTime) {
   return {
-    question: 'Was genau suchst du?',
-    questionType: 'open',
-    modelOptions: []
+    success: false,
+    error: grund,
+    empfehlungen: [],
+    zusammenfassung: '',
+    warnung: null,
+    alternativVorschlag: null,
+    metrics: {
+      provider: 'claude',
+      antwortzeit: startTime ? Date.now() - startTime : 0,
+      fehler: true,
+      grund
+    }
   };
 }
 
-// ============================================
-// EXPORTS
-// ============================================
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function healthCheck() {
+  try {
+    const apiKey = process.env.CLAUDE_API_KEY;
+    if (!apiKey) return { healthy: false, reason: 'API Key nicht konfiguriert' };
+
+    await axios.post(
+      CLAUDE_CONFIG.apiUrl,
+      {
+        model: CLAUDE_CONFIG.model,
+        max_tokens: 10,
+        messages: [{ role: 'user', content: 'Hi' }]
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01'
+        },
+        timeout: 10000
+      }
+    );
+
+    return { healthy: true, model: CLAUDE_CONFIG.model };
+  } catch (error) {
+    return { healthy: false, reason: error.message };
+  }
+}
 
 module.exports = {
-  analyzeUserIntent,
-  generateProductResponse,
-  generateFeedbackResponse,
-  generateFollowUpQuestion,
-  analyzeProductValidity,
-  SYNORA_SYSTEM_PROMPT
+  promptVersion,
+  // Fuer den Konsens: damit jedes Modell GENAU denselben Auftrag
+  // bekommt. Verschiedene Prompts waeren kein Konsens, sondern
+  // zwei verschiedene Fragen.
+  SYSTEM_PROMPT,
+  buildUserPrompt,
+  parseClaudeResponse,
+  getProductRecommendation,
+  healthCheck,
+  CLAUDE_CONFIG,
+  MODELL_SCHNELL,
+  MODELL_STARK,
+  PREISE_PRO_MTOK
 };
