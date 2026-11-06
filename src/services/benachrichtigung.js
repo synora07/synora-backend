@@ -45,7 +45,43 @@ const axios = require('axios');
 
 const MAIL_ANBIETER = String(process.env.MAIL_ANBIETER || 'aus').trim().toLowerCase();
 const MAIL_API_KEY = process.env.MAIL_API_KEY || '';
-const MAIL_ABSENDER = process.env.MAIL_ABSENDER || 'SYNORA <hallo@synora.li>';
+// ============================================
+// ABSENDER - GEPRUEFT, NICHT BLIND UEBERNOMMEN
+// ============================================
+// GEFUNDEN am 03.11.2026: In Brevo war als Absender eine
+// @gmail.com-Adresse eingetragen. Solche Mails kommen NIE an.
+// Google verbietet per DMARC, dass Dritte in seinem Namen
+// versenden - Brevo nimmt die Mail an, der Empfaenger wirft sie
+// stillschweigend weg. Kein Fehler, keine Bounce-Mail, nichts.
+//
+// Darum wird der Wert hier geprueft statt uebernommen. Alles, was
+// nicht auf @synora.li endet, wird ersetzt. Die Domain ist seit
+// dem 03.11.2026 bei Brevo authentifiziert (DKIM + DMARC), jede
+// Adresse darauf darf versenden.
+//
+// Der frueherer Standardwert war hallo@synora.li - dieses Postfach
+// gibt es seit dem 23.10.2026 nicht mehr.
+const STANDARD_ABSENDER = 'SYNORA <info@synora.li>';
+
+function absenderPruefen(roh) {
+  const wert = String(roh || '').trim();
+  if (!wert) return STANDARD_ABSENDER;
+
+  // Adresse aus "Name <adresse>" holen, sonst den ganzen Wert
+  const teile = wert.match(/^\s*(.*?)\s*<([^>]+)>\s*$/);
+  const adresse = (teile ? teile[2] : wert).trim().toLowerCase();
+
+  if (adresse.endsWith('@synora.li')) return wert;
+
+  console.warn(
+    `[mail] MAIL_ABSENDER "${adresse}" liegt nicht auf synora.li und ` +
+    `ist ueber Brevo nicht zustellbar. Es wird ${STANDARD_ABSENDER} ` +
+    `verwendet. Bitte die Variable in Railway korrigieren.`
+  );
+  return STANDARD_ABSENDER;
+}
+
+const MAIL_ABSENDER = absenderPruefen(process.env.MAIL_ABSENDER);
 
 const PUSH_AKTIV = String(process.env.PUSH_AKTIV || '').trim().toLowerCase() === 'true';
 
