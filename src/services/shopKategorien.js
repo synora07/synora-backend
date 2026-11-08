@@ -328,3 +328,146 @@ module.exports = {
   alleKategorien,
   zahlen
 };
+
+// ============================================
+// TOLERANTER VERGLEICH  (angebaut am 08.11.2026)
+// ============================================
+// Der genaue Vergleich oben bleibt unveraendert und laeuft zuerst.
+// Findet er nichts, wird hier ein bis zwei falsche Buchstaben verziehen.
+//
+// Warum ueberhaupt: in 40 echten Anfragen standen "playstiaion",
+// "playstaion", "kopfhoehrer", "moniror", "ien monitor". Ein Buchstabe
+// falsch, und die Kategorie war leer - damit keine passende Rueckfrage
+// und keine Preisspanne zum Vergleich.
+//
+// Vier Bremsen gegen falsche Treffer:
+//   1. erst ab 6 Buchstaben           ("stahl" trifft nicht "stuhl")
+//   2. der erste Buchstabe muss stimmen ("fisch" trifft nicht "tisch")
+//   3. 6-7 Zeichen: 1 Fehler, ab 8: 2 Fehler
+//   4. bei Gleichstand zwischen zwei Kategorien: null statt raten
+//
+// Die 6 ist nicht geraten. Mit 5 ergab die Probe "stahl" -> moebel.wohnen,
+// weil "stuhl" ein Zeichen entfernt ist. Mit 6 sind stahl/stuhl,
+// fisch/tisch, maus/haus, hacke/jacke gesperrt - und alle echten
+// Tippfehler aus dem Protokoll bleiben drin, der kuerzeste hat 7.
+
+const TOLERANZ_MINDESTLAENGE = 6;
+
+// Begriffe, die der tolerante Vergleich nicht anfassen darf. Bleibt
+// vorerst leer. Zeigt die Selbstpruefung beim Einbau Paare an, die
+// wirklich verwechselt werden koennen, kommen sie hier herein.
+const TOLERANZ_AUSGENOMMEN = new Set([]);
+
+function toleranzFuer(laenge) {
+  if (laenge < TOLERANZ_MINDESTLAENGE) return 0;
+  if (laenge <= 7) return 1;
+  return 2;
+}
+
+// Nur einzelne Woerter. Mehrwortbegriffe wie "gaming monitor" bleiben
+// dem genauen Vergleich, dort waere Raten zu unsicher.
+const TOLERANZ_BEGRIFFE = [...BEGRIFF_ZU_KATEGORIE.keys()].filter(
+  (b) => b.length >= TOLERANZ_MINDESTLAENGE
+    && !/[^a-z0-9]/.test(b)
+    && !TOLERANZ_AUSGENOMMEN.has(b)
+);
+
+// Levenshtein-Abstand mit Obergrenze: wie viele Buchstaben muessen
+// eingefuegt, geloescht oder getauscht werden, um aus a b zu machen.
+// Wird die Grenze ueberschritten, bricht die Rechnung ab und gibt null
+// zurueck - das spart bei einigen hundert Begriffen fast alle Arbeit.
+function abstand(a, b, grenze) {
+  const n = a.length;
+  const m = b.length;
+  if (Math.abs(n - m) > grenze) return null;
+  if (n === 0) return m <= grenze ? m : null;
+  if (m === 0) return n <= grenze ? n : null;
+
+  let vorher = new Array(m + 1);
+  let jetzt = new Array(m + 1);
+  for (let j = 0; j <= m; j++) vorher[j] = j;
+
+  for (let i = 1; i <= n; i++) {
+    jetzt[0] = i;
+    let kleinster = jetzt[0];
+    for (let j = 1; j <= m; j++) {
+      const kosten = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
+      jetzt[j] = Math.min(vorher[j] + 1, jetzt[j - 1] + 1, vorher[j - 1] + kosten);
+      if (jetzt[j] < kleinster) kleinster = jetzt[j];
+    }
+    // Keine Zelle dieser Zeile liegt noch unter der Grenze: es kann
+    // nicht mehr besser werden.
+    if (kleinster > grenze) return null;
+    const tausch = vorher;
+    vorher = jetzt;
+    jetzt = tausch;
+  }
+
+  const d = vorher[m];
+  return d <= grenze ? d : null;
+}
+
+// Sucht die Kategorie zu einem Text, bei dem der genaue Vergleich
+// nichts gefunden hat. Gibt null zurueck, wenn nichts sicher passt.
+function kategorieRaten(text) {
+  if (!text) return null;
+  const s = normalisiere(text);
+
+  let beste = null;          // die Kategorie
+  let besterBegriff = null;  // das richtig geschriebene Wort, fuer das Log
+  let bestesWort = null;     // das falsch geschriebene Wort, fuer das Log
+  let besterAbstand = 99;
+  let gleichstand = false;
+
+  const woerter = s.split(/[^a-z0-9]+/).filter((w) => w.length >= TOLERANZ_MINDESTLAENGE);
+
+  for (const wort of woerter) {
+    for (const begriff of TOLERANZ_BEGRIFFE) {
+      // Bremse 2: der erste Buchstabe muss stimmen.
+      if (wort.charCodeAt(0) !== begriff.charCodeAt(0)) continue;
+
+      const erlaubt = toleranzFuer(Math.max(wort.length, begriff.length));
+      if (erlaubt === 0) continue;
+
+      const d = abstand(wort, begriff, erlaubt);
+      if (d === null) continue;
+
+      const kategorie = BEGRIFF_ZU_KATEGORIE.get(begriff);
+
+      if (d < besterAbstand) {
+        besterAbstand = d;
+        beste = kategorie;
+        besterBegriff = begriff;
+        bestesWort = wort;
+        gleichstand = false;
+      } else if (d === besterAbstand && kategorie !== beste) {
+        // Bremse 4: zwei verschiedene Kategorien passen gleich gut.
+        gleichstand = true;
+      }
+    }
+  }
+
+  if (gleichstand) {
+    console.log(`[kategorie] "${bestesWort}" passt auf mehrere Kategorien gleich gut - keine gewaehlt`);
+    return null;
+  }
+  if (!beste) return null;
+
+  console.log(`[kategorie] "${bestesWort}" ~ "${besterBegriff}" (${besterAbstand} Zeichen) -> ${beste}`);
+  return beste;
+}
+
+// Der genaue Vergleich zuerst, der tolerante nur als Rueckfallebene.
+// So kann die Aenderung nichts verschlechtern, was heute schon geht:
+// wo bisher eine Kategorie herauskam, kommt dieselbe heraus.
+const kategorieGenau = module.exports.kategorieErkennen;
+
+module.exports.kategorieErkennen = function kategorieErkennenTolerant(text) {
+  const genau = kategorieGenau(text);
+  if (genau) return genau;
+  return kategorieRaten(text);
+};
+
+module.exports.kategorieGenau = kategorieGenau;
+module.exports.kategorieRaten = kategorieRaten;
+module.exports.abstand = abstand;
