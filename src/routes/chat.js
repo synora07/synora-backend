@@ -97,9 +97,55 @@ router.get('/guest-status', optionalAuth, async (req, res) => {
 // ============================================
 // HISTORY - GET /api/chat/history
 // ============================================
+const SuchProtokoll = require('../models/SuchProtokoll');
+
+/**
+ * Der Verlauf kommt aus dem Suchprotokoll, das bei jeder Suche ohnehin
+ * geschrieben wird (services/mitschrieb.js). Es braucht kein eigenes
+ * Model: nutzerId steht schon drin, weil chatController.js beim
+ * Anlegen .nutzer(req) aufruft.
+ *
+ * NUR DURCHLAEUFE MIT ERGEBNIS:
+ * Eine Suche mit Rueckfrage erzeugt ZWEI Protokolle - eines fuer die
+ * gestellte Frage (ohne Produkte) und eines fuer die eigentliche
+ * Suche. Ohne diesen Filter stuende jede Frage doppelt im Verlauf,
+ * eine davon leer.
+ */
 router.get('/history', requireAuth, async (req, res) => {
-  // TODO: aus dem ChatHistory-Model lesen
-  res.json({ history: [] });
+  try {
+    const nutzerId = req.user && (req.user._id || req.user.id);
+    if (!nutzerId) return res.json({ history: [] });
+
+    const anzahl = Math.min(Math.max(Number(req.query.anzahl) || 20, 1), 50);
+
+    const eintraege = await SuchProtokoll.find(
+      { nutzerId, 'ergebnis.0': { $exists: true } },
+      'zeit anfrage ergebnis'
+    )
+      .sort({ zeit: -1 })
+      .limit(anzahl)
+      .lean();
+
+    const history = eintraege.map((e) => ({
+      id: String(e._id),
+      zeit: e.zeit,
+      frage: (e.anfrage && (e.anfrage.roh || e.anfrage.vollstaendig)) || '',
+      kategorie: (e.anfrage && e.anfrage.kategorie) || null,
+      budget: (e.anfrage && e.anfrage.budget) || null,
+      produkte: (e.ergebnis || []).map((p) => ({
+        titel: p.titel || '',
+        preis: typeof p.preis === 'number' ? p.preis : null,
+        shop: p.shop || '',
+        score: typeof p.score === 'number' ? p.score : null
+      }))
+    }));
+
+    res.json({ history });
+  } catch (e) {
+    // Ein kaputter Verlauf darf die Seite nicht kaputt machen.
+    console.warn('[history] nicht gelesen:', e.message);
+    res.json({ history: [] });
+  }
 });
 
 module.exports = router;
