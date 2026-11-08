@@ -129,7 +129,10 @@ router.get('/history', requireAuth, async (req, res) => {
     const history = eintraege.map((e) => ({
       id: String(e._id),
       zeit: e.zeit,
-      frage: (e.anfrage && (e.anfrage.roh || e.anfrage.vollstaendig)) || '',
+      // vollstaendig zuerst: bei einer Rueckfrage steht in "roh" nur
+      // die Antwort auf den Knopf ("Fuer die Arbeit"), in
+      // "vollstaendig" die ganze Frage ("monitor (Fuer die Arbeit)").
+      frage: (e.anfrage && (e.anfrage.vollstaendig || e.anfrage.begriff || e.anfrage.roh)) || '',
       kategorie: (e.anfrage && e.anfrage.kategorie) || null,
       budget: (e.anfrage && e.anfrage.budget) || null,
       produkte: (e.ergebnis || []).map((p) => ({
