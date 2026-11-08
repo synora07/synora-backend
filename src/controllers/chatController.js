@@ -364,6 +364,20 @@ function shopStufe(p) {
   const qualitaet = p.shopInfo ? p.shopInfo.qualitaet : null;
   const schweiz = istSchweiz(p);
 
+  // ---------- Marktplaetze: immer Stufe 6 ----------
+  // GEFUNDEN am 08.11.2026: Bei einer Monitor-Suche standen auf Platz
+  // 1 und 3 eBay-Verkaeufer mit CHF 35.07 und CHF 21.92 - fuer Geraete,
+  // die rund 300 Franken kosten.
+  //
+  // Diese Pruefung steht VOR allen anderen. Sonst macht istSchweiz()
+  // aus "eBay Schweiz" eine Stufe 2 und der Fremde steht ganz oben,
+  // oder die Shop-Datenbank kennt ein Land und es wird Stufe 5.
+  //
+  // Hinter so einem Angebot steht kein Shop, sondern eine Privatperson:
+  // keine Adresse, keine Garantie, kein Rueckgaberecht. Das passt nicht
+  // zu einer Seite, die "Preise aus Schweizer Shops" verspricht.
+  if (/\bebay\b/.test(quelle)) return 6;
+
   if (schweiz && GUTE_STUFEN.includes(qualitaet)) return 1;
   if (schweiz && SCHWACHE_STUFEN.includes(qualitaet)) return 4;
   if (schweiz) return 2;
@@ -388,7 +402,24 @@ function kandidatenWaehlen(alle, budget, anzahl = 12) {
   // Shop, den du selbst schwach bewertet hast, stellt die Rangfolge
   // bewusst hinter Amazon.
   const schweizer = alle.filter((p) => shopStufe(p) <= 2);
-  const ausland = alle.filter((p) => shopStufe(p) > 2);
+
+  // ---------- Stufe 6 fuellt NICHT auf ----------
+  // Bisher standen Stufe 5 und 6 zusammen in "ausland". Der Kommentar
+  // oben sagt "lieber ein Treffer aus Deutschland als gar keiner" -
+  // das stimmt fuer Stufe 5, einen echten Shop mit Adresse.
+  //
+  // Stufe 6 heisst: kein erkennbares Land, kein Shop, eine Privatperson.
+  // Lieber zwei Vorschlaege als drei, von denen einer ein Fremder ohne
+  // Adresse ist.
+  const ausland = alle.filter((p) => {
+    const stufe = shopStufe(p);
+    return stufe > 2 && stufe < 6;
+  });
+
+  const unbekannt = alle.filter((p) => shopStufe(p) === 6);
+  if (unbekannt.length) {
+    console.log(`[auswahl] ${unbekannt.length} Angebote ohne erkennbaren Shop aussortiert (Stufe 6)`);
+  }
 
   // Genug Schweizer: nur die. Sonst fuellt das Ausland auf -
   // Amazon zuerst, dann der Rest.
