@@ -521,13 +521,36 @@ function preisVerdaechtigGegen(produkt, spanne) {
  *
  * @returns {Map<string, {mittel:number, anzahl:number, woher:string}>}
  */
+/**
+ * Schluessel fuers Gruppieren innerhalb EINER Suche: wie
+ * schluesselBauen, aber die Woerter alphabetisch sortiert.
+ *
+ * Angebaut am 09.11.2026. Grund: "HP Monitor OMEN 32c" und
+ * "HP OMEN 32c Monitor" sind dasselbe Geraet, ergaben aber zwei
+ * Schluessel - und damit zwei Gruppen mit je einem Angebot, also gar
+ * keinen Vergleich.
+ *
+ * schluesselBauen selbst bleibt unangetastet: es bildet auch die
+ * Schluessel der Produktwissen-Datenbank. Eine Aenderung dort wuerde
+ * jeden gespeicherten Eintrag unauffindbar machen.
+ */
+function preisgruppenSchluessel(name) {
+  const s = schluesselBauen(name);
+  if (!s) return '';
+  // schluesselBauen trennt mit Bindestrichen:
+  //   "HP Monitor OMEN 32c"  ->  "hp-monitor-omen-32c"
+  // Am 09.11.2026 stand hier zuerst nur \s+ - damit blieb der ganze
+  // Schluessel ein einziges Wort und das Sortieren bewirkte nichts.
+  return String(s).split(/[\s-]+/).filter(Boolean).sort().join('-');
+}
+
 function preisgruppenBauen(produkte) {
   const nachSchluessel = new Map();
 
   for (const p of Array.isArray(produkte) ? produkte : []) {
     const preis = typeof p.priceValue === 'number' ? p.priceValue : null;
     if (!preis || preis <= 0) continue;
-    const s = schluesselBauen(p.title || p.name || '');
+    const s = preisgruppenSchluessel(p.title || p.name || '');
     if (!s) continue;
     if (!nachSchluessel.has(s)) nachSchluessel.set(s, []);
     nachSchluessel.get(s).push(preis);
@@ -552,6 +575,7 @@ module.exports = {
   preisVerdaechtig,
   preisVerdaechtigGegen,   // angebaut 09.11.2026
   preisgruppenBauen,       // angebaut 09.11.2026
+  preisgruppenSchluessel,  // angebaut 09.11.2026
   zuListe,
   alsText,
   schluesselBauen,

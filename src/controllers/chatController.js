@@ -1247,7 +1247,7 @@ const sendMessage = async (req, res) => {
 
         p.preisSpanne = brauchbar
           ? gespeichert
-          : (liveSpannen.get(produktWissen.schluesselBauen(p.title || p.name || '')) || null);
+          : (liveSpannen.get(produktWissen.preisgruppenSchluessel(p.title || p.name || '')) || null);
 
         p.preisVerdacht = !!produktWissen.preisVerdaechtigGegen(p, p.preisSpanne);
         if (p.preisVerdacht) {

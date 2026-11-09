@@ -88,7 +88,11 @@ const AENDERUNGEN = [
 function preisgruppenSchluessel(name) {
   const s = schluesselBauen(name);
   if (!s) return '';
-  return String(s).split(/\\s+/).filter(Boolean).sort().join(' ');
+  // schluesselBauen trennt mit Bindestrichen:
+  //   "HP Monitor OMEN 32c"  ->  "hp-monitor-omen-32c"
+  // Am 09.11.2026 stand hier zuerst nur \\s+ - damit blieb der ganze
+  // Schluessel ein einziges Wort und das Sortieren bewirkte nichts.
+  return String(s).split(/[\\s-]+/).filter(Boolean).sort().join('-');
 }
 
 function preisgruppenBauen(produkte) {
