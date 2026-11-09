@@ -143,8 +143,13 @@ async function searchProducts(query, country = 'CH', limit = 3) {
         currency: shop.currency,
         
         // SYNORA Features
-        verified: true,
-        lastVerified: new Date().toISOString(),
+        // verified und lastVerified entfernt am 08.11.2026.
+        // Hier wurde nie etwas geprueft. Ein Pruefsiegel ohne Pruefung
+        // ist eine Behauptung ohne Beleg - genau das, was Regel 2
+        // verbietet. Der Zeitstempel behauptete obendrein, die Pruefung
+        // sei gerade passiert.
+        verified: false,
+        lastVerified: null,
         synoraScore: synoraScore,
         confidence: {
           level: synoraScore >= 85 ? 'high' : synoraScore >= 75 ? 'medium' : 'low',
@@ -158,9 +163,21 @@ async function searchProducts(query, country = 'CH', limit = 3) {
           tradeOffs: []
         },
         
-        // Bewertung (simuliert)
-        rating: (4.0 + Math.random() * 0.9).toFixed(1),
-        reviewCount: Math.floor(100 + Math.random() * 900)
+        // Bewertung: es gibt hier keine.
+        //
+        // Bis zum 08.11.2026 standen hier zwei Math.random()-Aufrufe:
+        //   rating:      eine Zufallszahl zwischen 4.0 und 4.9
+        //   reviewCount: eine Zufallszahl zwischen 100 und 1000
+        //
+        // Der Kommentar daneben sagte "(simuliert)" - es war also
+        // bekannt. Ausgeliefert wurde es nie, weil productRoutes.js
+        // diesen Dienst zwar laedt, aber nie aufruft.
+        //
+        // Richtig macht es serpApiService.js:205 - null, wenn nichts
+        // da ist. Eine fehlende Angabe ist ehrlich. Eine erfundene
+        // Angabe ist es nie, auch nicht als Platzhalter.
+        rating: null,
+        reviewCount: null
       };
     });
     

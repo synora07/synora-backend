@@ -6,13 +6,15 @@ const express = require('express');
 const router = express.Router();
 
 // Services laden
-let serpApiService, productSearchService;
+let serpApiService;
 try {
   serpApiService = require('../services/serpApiService');
 } catch (e) {}
-try {
-  productSearchService = require('../services/productSearchService');
-} catch (e) {}
+
+// productSearchService wurde hier geladen und in diesen 75 Zeilen nie
+// aufgerufen - entfernt am 08.11.2026. Die Suche unten benutzt
+// ausschliesslich serpApiService.searchRealProducts, und das ist
+// richtig so: nur dort kommen Preise und Bewertungen aus echten Daten.
 
 // ============================================
 // SEARCH PRODUCTS - GET /api/products/search

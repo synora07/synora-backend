@@ -130,12 +130,20 @@ L) DER ZWECK GEHT VOR DEM PREIS.
    nicht drei billige Ohrhoerer ohne.
    Die Kandidatenliste deckt die ganze Budgetspanne ab. Nutze sie.
 
-M) BEWERTUNGSZAHLEN EHRLICH EINORDNEN.
-   Unter 50 Bewertungen sagt der Durchschnitt wenig. Dann schreibst
-   du "erst wenige Bewertungen, die Zahl sagt noch wenig aus" -
-   NICHT "zeigt Zuverlaessigkeit". Ab etwa 500 Bewertungen darfst
-   du von einem belastbaren Bild sprechen.
-   Eine 5-Sterne-Wertung bei 31 Bewertungen ist kein Beweis.
+M) BEWERTUNGEN IN WORTEN, NIE IN ZIFFERN.
+   Du schreibst NIE eine Bewertungsanzahl - weder als Ziffer noch als
+   ausgeschriebenes Zahlwort. Du bekommst die Anzahl auch gar nicht
+   mehr geliefert. Stattdessen steht bei jedem Produkt, wo eine
+   Anzahl bekannt ist, eine Zeile BEWERTUNGS-BASIS mit dem fertigen
+   Urteil. Gib dieses Urteil in Worten wieder:
+     ZU WENIG   -> "erst wenige Bewertungen, die Zahl sagt noch
+                    wenig aus"
+     MITTEL     -> "eine ordentliche Zahl von Bewertungen, aber
+                    kein Beweis"
+     BELASTBAR  -> "viele Bewertungen, das Bild ist belastbar"
+   Bei ZU WENIG nie "zeigt Zuverlaessigkeit" oder etwas Aehnliches.
+   Steht bei einem Produkt keine BEWERTUNGS-BASIS, sagst du zu
+   dessen Bewertungen gar nichts - auch nicht, dass es keine gibt.
 
 N) EIGENSCHAFTEN NUR MIT BELEG.
    Behaupte eine Eigenschaft - Mikrofon, Geraeuschunterdrueckung,
@@ -363,9 +371,40 @@ function buildUserPrompt(query, produkte, personalisierung, kontext) {
       }
     }
 
-    if (p.rating) prompt += `   Bewertung: ${p.rating}`;
-    if (p.rating && p.reviews) prompt += ` aus ${p.reviews} Bewertungen`;
-    if (p.rating) prompt += `\n`;
+    // ---------- Bewertung ----------
+    // GEAENDERT am 09.11.2026. Vorher standen hier drei Zeilen:
+    //
+    //   if (p.rating) prompt += `   Bewertung: ${p.rating}`;
+    //   if (p.rating && p.reviews) prompt += ` aus ${p.reviews} Bewertungen`;
+    //   if (p.rating) prompt += `\n`;
+    //
+    // Zwei Fehler darin:
+    //
+    // 1. Fehlte die Sternezahl, fiel die Anzahl stillschweigend mit
+    //    weg - auch wenn sie da war. Das Modell musste dann ueber
+    //    Bewertungszahlen urteilen, ohne eine zu kennen.
+    //
+    // 2. Das Modell bekam die blanke Anzahl und schrieb sie in den
+    //    Satz - verfaelscht. Gemessen am 08.11.2026: 692 wurde zu 746,
+    //    121 zu 95, 87 zu 262. Drei von drei.
+    //
+    // Jetzt sind beide Angaben unabhaengig, und die Anzahl wird gar
+    // nicht mehr geliefert - nur das fertige Urteil. Was das Modell
+    // nicht hat, kann es nicht verfaelschen.
+    //
+    // Die Grenzen 50 und 500 standen schon vorher in Regel M. Neu ist
+    // nur, dass der Code sie ausrechnet statt das Modell.
+    const sterne = p.rating === 0 || p.rating ? String(p.rating).trim() : '';
+    const anzahl = Number(p.reviews);
+    const anzahlBekannt = Number.isFinite(anzahl) && anzahl > 0;
+
+    if (sterne) prompt += `   STERNE: ${sterne} (zum Vergleichen, nicht zum Hinschreiben)\n`;
+    if (anzahlBekannt) {
+      const basis = anzahl < 50 ? 'ZU WENIG'
+        : anzahl < 500 ? 'MITTEL'
+        : 'BELASTBAR';
+      prompt += `   BEWERTUNGS-BASIS: ${basis}\n`;
+    }
   });
 
   if (personalisierung && personalisierung.aktiv) {
