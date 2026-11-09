@@ -1224,6 +1224,46 @@ const sendMessage = async (req, res) => {
       console.warn('[wissen] nicht verfuegbar:', e.message);
     }
 
+    // ---------- Preisverdacht (angebaut 09.11.2026) ----------
+    // Bis hierher konnte ein Faelschungsverdacht nur entstehen, wenn
+    // zu dem Produkt schon eine gespeicherte Preisspanne vorlag. Bei
+    // einem Produkt, das SYNORA zum ersten Mal sieht, gab es keine -
+    // und genau so ein Erstfall war der OMEN 32c fuer CHF 21.92 am
+    // 08.11.2026.
+    //
+    // Die vierzig Treffer dieser Suche enthalten aber oft mehrere
+    // Angebote fuer dasselbe Geraet. Daraus laesst sich sofort eine
+    // Spanne bilden, ohne Abruf und ohne Kosten.
+    //
+    // Gespeichertes Wissen bleibt staerker: es kennt die Preise ueber
+    // Wochen, nicht nur die dieser Minute.
+    try {
+      const liveSpannen = produktWissen.preisgruppenBauen(mitId);
+      let verdachtZahl = 0;
+
+      for (const p of mitId) {
+        const gespeichert = p.wissen && p.wissen.preisSpanne;
+        const brauchbar = gespeichert && gespeichert.mittel && gespeichert.anzahl >= 2;
+
+        p.preisSpanne = brauchbar
+          ? gespeichert
+          : (liveSpannen.get(produktWissen.schluesselBauen(p.title || p.name || '')) || null);
+
+        p.preisVerdacht = !!produktWissen.preisVerdaechtigGegen(p, p.preisSpanne);
+        if (p.preisVerdacht) {
+          verdachtZahl += 1;
+          console.warn(`[preis] Verdacht: ${p.title} fuer ${p.priceValue}, `
+            + `ueblich um ${Math.round(p.preisSpanne.mittel)} (${p.preisSpanne.woher || 'gespeichert'})`);
+        }
+      }
+
+      if (verdachtZahl) console.log(`[preis] ${verdachtZahl} Angebot(e) mit Preisverdacht`);
+    } catch (e) {
+      // Faellt der Vergleich aus, laeuft die Suche weiter - nur ohne
+      // Verdachtspruefung. Er darf nie eine Suche verhindern.
+      console.warn('[preis] Vergleich nicht moeglich:', e.message);
+    }
+
     // --------------------------------------
     // STUFE 4: bewerten
     // --------------------------------------

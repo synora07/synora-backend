@@ -360,6 +360,22 @@ function buildUserPrompt(query, produkte, personalisierung, kontext) {
     if (typeof p.shopStufe === 'number') {
       prompt += `   SHOP-STUFE: ${p.shopStufe} (1 ist am besten, 6 am schlechtesten)\n`;
     }
+
+    // ---------- Preisverdacht (angebaut 09.11.2026) ----------
+    // Bis heute stand die Faelschungswarnung erst NACH der Bewertung
+    // in den Nachteilen - das Modell hatte seinen Text da laengst
+    // geschrieben. Darum konnte es am 08.11.2026 formulieren:
+    // "lohnt sich der HP OMEN 32c fuer unter 22 CHF", waehrend
+    // darunter eine Faelschungswarnung stand.
+    //
+    // Jetzt steht der Verdacht in den Daten, bevor das Modell urteilt.
+    // Gleiches Vorgehen wie bei SHOP-STUFE: der Code entscheidet, das
+    // Modell formuliert.
+    if (p.preisVerdacht) {
+      prompt += `   PREIS-VERDACHT: ja - dieses Angebot liegt weit unter allen anderen\n`;
+      prompt += `   Empfiehl es nicht wegen des Preises. Der niedrige Preis ist hier\n`;
+      prompt += `   kein Vorteil, sondern ein Warnzeichen.\n`;
+    }
     // ---------- Produktwissen ----------
     // Bauform, Akkulaufzeit, Sterneverteilung und echte
     // Bewertungstexte. NUR was hier steht, darfst du behaupten -

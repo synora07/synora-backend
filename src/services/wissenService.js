@@ -471,7 +471,21 @@ function alsText(wissen) {
  * @returns {string|null} Warnung im Klartext
  */
 function preisVerdaechtig(produkt, wissen) {
-  const spanne = wissen && wissen.preisSpanne;
+  return preisVerdaechtigGegen(produkt, wissen && wissen.preisSpanne);
+}
+
+/**
+ * Dieselbe Pruefung, aber gegen eine beliebige Preisspanne - egal ob
+ * sie aus der Datenbank kommt oder aus der laufenden Suche.
+ *
+ * Angebaut am 09.11.2026. Vorher nahm preisVerdaechtig die Spanne nur
+ * aus dem gespeicherten Produktwissen. Das gibt es bei einem Produkt,
+ * das SYNORA zum ersten Mal sieht, noch nicht - und genau so ein
+ * Erstfall war der OMEN 32c fuer CHF 21.92.
+ *
+ * @returns {string|null} Warnung im Klartext
+ */
+function preisVerdaechtigGegen(produkt, spanne) {
   if (!spanne || !spanne.mittel || spanne.anzahl < 2) return null;
 
   const preis = typeof produkt.priceValue === 'number' ? produkt.priceValue : null;
@@ -480,14 +494,64 @@ function preisVerdaechtig(produkt, wissen) {
   const anteil = preis / spanne.mittel;
   if (anteil >= 0.5) return null;
 
-  return `Dieses Angebot kostet ${preis} Franken, andere Shops verlangen um ${spanne.mittel}. `
+  const gerundet = Math.round(spanne.mittel);
+  return `Dieses Angebot kostet ${preis} Franken, andere Shops verlangen um ${gerundet}. `
     + 'Das ist ungewoehnlich weit darunter - bei Markenware ein Hinweis auf Faelschung '
     + 'oder darauf, dass nicht das vollstaendige Produkt geliefert wird.';
+}
+
+/**
+ * Baut Preisspannen aus den Angeboten EINER laufenden Suche.
+ *
+ * Google liefert pro Suche rund vierzig Treffer, darunter oft mehrere
+ * fuer dasselbe Geraet bei verschiedenen Shops. Daraus laesst sich
+ * eine Spanne bilden, ohne irgendetwas nachzuschlagen.
+ *
+ * Gruppiert wird ueber schluesselBauen() - dieselbe Normalisierung,
+ * mit der auch das Produktwissen denselben Artikel ueber verschiedene
+ * Shop-Schreibweisen hinweg wiedererkennt.
+ *
+ * Genommen wird der MEDIAN, nicht der Durchschnitt. Ein einzelner
+ * Ausreisser nach unten - also genau der Faelschungsverdacht - wuerde
+ * den Durchschnitt mit nach unten ziehen und sich dadurch selbst
+ * unverdaechtig machen. Der Median tut das nicht.
+ *
+ * Mindestens zwei Angebote pro Gruppe, dieselbe Huerde wie beim
+ * gespeicherten Wissen.
+ *
+ * @returns {Map<string, {mittel:number, anzahl:number, woher:string}>}
+ */
+function preisgruppenBauen(produkte) {
+  const nachSchluessel = new Map();
+
+  for (const p of Array.isArray(produkte) ? produkte : []) {
+    const preis = typeof p.priceValue === 'number' ? p.priceValue : null;
+    if (!preis || preis <= 0) continue;
+    const s = schluesselBauen(p.title || p.name || '');
+    if (!s) continue;
+    if (!nachSchluessel.has(s)) nachSchluessel.set(s, []);
+    nachSchluessel.get(s).push(preis);
+  }
+
+  const spannen = new Map();
+  for (const [s, preise] of nachSchluessel) {
+    if (preise.length < 2) continue;
+    const sortiert = preise.slice().sort((a, b) => a - b);
+    const mitte = Math.floor(sortiert.length / 2);
+    const median = sortiert.length % 2
+      ? sortiert[mitte]
+      : (sortiert[mitte - 1] + sortiert[mitte]) / 2;
+    spannen.set(s, { mittel: median, anzahl: preise.length, woher: 'laufende Suche' });
+  }
+
+  return spannen;
 }
 
 module.exports = {
   zuProdukt,
   preisVerdaechtig,
+  preisVerdaechtigGegen,   // angebaut 09.11.2026
+  preisgruppenBauen,       // angebaut 09.11.2026
   zuListe,
   alsText,
   schluesselBauen,
