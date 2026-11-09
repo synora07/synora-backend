@@ -204,6 +204,87 @@ const FRAGE_ALLGEMEIN = {
 };
 
 // ============================================
+// PRODUKTLINIEN  (angebaut 09.11.2026)
+// ============================================
+// Wer "playstation" tippt, hat sich fuer die Linie entschieden. Die
+// Frage "wofuer brauchst du es" aendert daran nichts - sie ist nicht
+// ueberfluessig, sondern die falsche. Richtig ist die Frage nach der
+// Ausfuehrung.
+//
+// Gemessen am 09.11.2026 kam bei "playstation 5" die Frage
+// "Worum geht es dir?" - eine Gaming-Frage, die schon beantwortet ist.
+//
+// Diese Tabelle wird VOR FRAGEN[pfad] geprueft. Steht eine Linie nicht
+// drin, bleibt alles wie bisher.
+//
+// BEWUSST OHNE MODELLNAMEN. "Mit Laufwerk oder nur Download" bleibt
+// richtig, auch wenn naechstes Jahr andere Namen auf den Kartons
+// stehen. Eine Liste mit "PS5 Slim" waere in einem Jahr falsch.
+//
+// DIESE VIER EINTRAEGE SIND EIN ANFANG und gehoeren geprueft. Ein
+// falscher Eintrag ersetzt still eine sinnvolle Frage durch eine
+// unpassende.
+
+const FRAGEN_LINIE = {
+  playstation: {
+    frage: 'Welche Ausführung soll es sein?',
+    optionen: ['Mit Laufwerk für Discs', 'Nur Download, ohne Laufwerk']
+  },
+  xbox: {
+    frage: 'Welche Ausführung soll es sein?',
+    optionen: ['Mit Laufwerk für Discs', 'Nur Download, ohne Laufwerk']
+  },
+  iphone: {
+    frage: 'Wie viel Speicher brauchst du?',
+    optionen: ['Wenig – Telefon und Nachrichten', 'Mittel – Fotos und Apps', 'Viel – Videos und Spiele']
+  },
+  nintendo: {
+    frage: 'Wo wirst du damit spielen?',
+    optionen: ['Unterwegs', 'Am Fernseher', 'Beides']
+  }
+};
+
+// Masseinheiten sehen aus wie Modellnummern - 4k, 144hz, 32gb, 27zoll
+// bestehen ebenfalls aus Ziffern und Buchstaben. Sie sind aber
+// Eigenschaften, keine Geraete. Ohne diese Ausnahme wuerde
+// "monitor 4k" nicht mehr nachfragen, und das waere schlechter als
+// vorher.
+const EINHEITEN = /^[0-9]+(k|p|hz|gb|tb|mb|kb|zoll|cm|mm|m|kg|g|w|v|a|ah|mah|fps|bit|khz|ghz|mhz|ml|l)$/;
+
+/**
+ * Steht im Text eine Modellnummer?
+ *
+ * Eine Modellnummer besteht aus Buchstaben UND Ziffern in einem Wort:
+ * 27E1N1800AE, 32c, VA279HG, 24b31h. Wer so etwas tippt, meint ein
+ * bestimmtes Geraet - dann aendert keine Rueckfrage mehr etwas.
+ *
+ * "playstation 5" faellt NICHT darunter: "playstation" ist reiner
+ * Text, "5" ist eine reine Zahl. Gemischt ist keines von beiden.
+ */
+function modellnummer(text) {
+  const woerter = String(text || '').toLowerCase().split(/[^a-z0-9]+/);
+  for (const w of woerter) {
+    if (w.length < 3) continue;
+    if (!/[a-z]/.test(w)) continue;
+    if (!/[0-9]/.test(w)) continue;
+    if (EINHEITEN.test(w)) continue;
+    return w;
+  }
+  return null;
+}
+
+/**
+ * Nennt der Text eine Produktlinie aus FRAGEN_LINIE?
+ */
+function linieErkennen(text) {
+  const s = ' ' + String(text || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() + ' ';
+  for (const linie of Object.keys(FRAGEN_LINIE)) {
+    if (s.includes(' ' + linie + ' ')) return linie;
+  }
+  return null;
+}
+
+// ============================================
 // EIGENE FRAGEN ERKENNEN
 // ============================================
 // Sich auf eine Markierung aus dem Frontend zu verlassen war ein
@@ -277,13 +358,33 @@ function pruefen({ nachricht, anforderungen, budget, verlauf }) {
   const woerter = String(nachricht || '').trim().split(/\s+/).length;
   if (woerter > 12) return null;
 
+  // ---------- Regel vom 08.11.2026 ----------
+  // Nur fragen, wenn die Antwort die Vorschlaege aendert.
+  //
+  // Eine Modellnummer benennt genau ein Geraet. Gemessen am
+  // 09.11.2026 fragte SYNORA bei "philips 27E1N1800AE" trotzdem
+  // "Damit ich nicht raten muss: Wofuer brauchst du es?" - eine Frage,
+  // deren Antwort nichts aendern kann.
+  const modell = modellnummer(nachricht);
+  if (modell) {
+    console.log(`[rueckfrage] keine Frage - "${modell}" ist eine Modellnummer`);
+    return null;
+  }
+
   const pfad = kategorien ? kategorien.kategorieErkennen(nachricht) : null;
   const haupt = pfad ? pfad.split('.')[0] : null;
 
+  // Produktlinie zuerst: wer "playstation" tippt, hat die Linie
+  // gewaehlt. Dann ist nicht der Zweck offen, sondern die Ausfuehrung.
+  const linie = linieErkennen(nachricht);
+
   const vorlage =
+    (linie && FRAGEN_LINIE[linie]) ||
     (pfad && FRAGEN[pfad]) ||
     (haupt && FRAGEN_HAUPT[haupt]) ||
     FRAGE_ALLGEMEIN;
+
+  if (linie) console.log(`[rueckfrage] Produktlinie "${linie}" - Frage nach der Ausfuehrung`);
 
   const block = alsBlock(vorlage, pfad);
   if (!block.length) return null;
@@ -381,6 +482,9 @@ module.exports = {
   zusammenfuehren,
   schonGefragt,
   genugAngaben,
+  modellnummer,            // angebaut 09.11.2026
+  linieErkennen,           // angebaut 09.11.2026
+  FRAGEN_LINIE,            // angebaut 09.11.2026
   willKeineFragen,
   EGAL
 };
