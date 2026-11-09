@@ -231,7 +231,72 @@ function pruefeShop(satz, p) {
   return `nennt den Shop ${genannt[1]}, das Produkt kommt aber von ${p.source || p.shop || 'unbekannt'}`;
 }
 
-const PRUEFUNGEN = [pruefeAnzahl, pruefeSterne, pruefeBauform, pruefeBelegt, pruefeShop];
+// ============================================
+// ZAHLEN MIT EINHEIT  (angebaut 09.11.2026)
+// ============================================
+// BELEGPFLICHTIG oben deckt sieben Eigenschaften ab, und alle sieben
+// sind fuer Kopfhoerer. Fuer Monitore, Laptops und Handys steht dort
+// nichts - von 110 Kategorien ist eine abgedeckt.
+//
+// Am 08.11.2026 stand in einem Satz "nur 4% unzufriedene Kaeufer".
+// Gestrichen wurde er wegen der Bewertungsanzahl daneben; die
+// Prozentzahl hat niemand geprueft. Dasselbe gilt fuer "825 GB SSD",
+// "12 Stunden Akku" oder "144 Hz".
+//
+// Statt die Liste endlos zu verlaengern, eine Regel fuer alle:
+// Traegt eine Zahl eine Einheit, muss sie in den Produktdaten stehen.
+//
+// NUR Zahlen mit Einheit. "Liegt mit 150 Franken unter deinem Budget
+// von 200" waere sonst auch betroffen - die 200 sind das Budget des
+// Nutzers, kein Produktdatum, und der Satz ist richtig.
+
+// Die Einheiten decken alle Warenwelten ab, nicht nur Elektronik.
+// Kiara verkauft auch Kosmetik und Kleidung - dort sind ml, g und
+// Prozent die Angaben, auf die es ankommt:
+//
+//   KOSMETIK   200 ml Flasche, 5% Urea, 250 g Tiegel
+//   KLEIDUNG   60% Baumwolle, 320 g, 82 cm Innenbeinlaenge
+//   HAUSHALT   1800 W Leistung
+//
+// Laengere Einheiten stehen vor kuerzeren, damit "16 gb" nicht als
+// "16 g" gelesen wird. Das (?![a-z]) am Ende sorgt dafuer, dass
+// "5 Wochen" nicht als "5 W" durchgeht.
+const ZAHL_MIT_EINHEIT = /(\d+(?:[.,]\d+)?)[\s-]*(prozent|zoll|kerne|kern|stunden|stunde|minuten|minute|monaten|monate|monat|jahren|jahre|jahr|liter|lumen|karat|nits|khz|ghz|mhz|mah|wh|hz|fps|bit|dpi|ppi|std|gb|tb|mb|kb|ml|mg|cm|mm|kg|g|l|w|v|%|"|k)(?![a-z])/gi;
+
+function alleZahlen(text) {
+  return (String(text || '').match(/\d+(?:[.,]\d+)?/g) || []).map((z) => z.replace(',', '.'));
+}
+
+/**
+ * Jede Zahl mit Einheit muss in den Produktdaten stehen.
+ *
+ * Erlaubt sind alle Zahlen aus produktText - also Titel, Name,
+ * Extensions und das Produktwissen - dazu Sterne und
+ * Bewertungsanzahl, die nicht im Text stehen, aber am Produkt
+ * haengen.
+ */
+function pruefeZahlen(satz, p) {
+  const erlaubt = new Set(alleZahlen(produktText(p)));
+  if (p && p.rating !== undefined && p.rating !== null) erlaubt.add(String(p.rating).replace(',', '.'));
+  if (p && p.reviews !== undefined && p.reviews !== null) erlaubt.add(String(p.reviews).replace(',', '.'));
+
+  // 4.0 und 4 sind dieselbe Zahl - sonst streicht die Pruefung eine
+  // richtige Angabe nur wegen der Schreibweise.
+  const alsZahlen = [...erlaubt].map(Number).filter(Number.isFinite);
+
+  ZAHL_MIT_EINHEIT.lastIndex = 0;
+  let treffer;
+  while ((treffer = ZAHL_MIT_EINHEIT.exec(satz)) !== null) {
+    const roh = treffer[1].replace(',', '.');
+    if (erlaubt.has(roh)) continue;
+    const zahl = Number(roh);
+    if (Number.isFinite(zahl) && alsZahlen.some((e) => e === zahl)) continue;
+    return `"${treffer[0].trim()}" steht nicht in den Produktdaten`;
+  }
+  return null;
+}
+
+const PRUEFUNGEN = [pruefeAnzahl, pruefeSterne, pruefeBauform, pruefeBelegt, pruefeShop, pruefeZahlen];
 
 // ============================================
 // ANWENDEN
