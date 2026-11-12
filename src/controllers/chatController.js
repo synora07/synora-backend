@@ -679,7 +679,7 @@ function nutzerIp(req) {
 // Premium gibt es noch nicht. Sobald es das gibt, ist das hier die
 // EINE Zeile, die angepasst werden muss - sonst nichts.
 function istPremium(req) {
-  return !!(req.user && (req.user.istPremium || req.user.premium || req.user.plan === 'premium'));
+  return !!(req.user && (req.user.stufe === 'kiara_plus' || req.user.stufe === 'nora'));
 }
 
 const sendMessage = async (req, res) => {

@@ -92,8 +92,8 @@ function periode(name, vorgabe) {
 
 const STUFEN = {
   gast:    { grenze: zahl('SUCHEN_GAST', 0, 0),     periode: periode('GAST_PERIODE', 'tag') },
-  konto:   { grenze: zahl('SUCHEN_KONTO', 5, 0),    periode: periode('KONTO_PERIODE', 'monat') },
-  premium: { grenze: zahl('SUCHEN_PREMIUM', 15, 0), periode: periode('KONTO_PERIODE', 'monat') }
+  konto:   { grenze: zahl('SUCHEN_KONTO', 3, 0),    periode: periode('KONTO_PERIODE', 'monat') },
+  premium: { grenze: zahl('SUCHEN_PREMIUM', 55, 0), periode: periode('KONTO_PERIODE', 'monat') }
 };
 
 const alsText = (g) => (g === Infinity ? 'unbegrenzt' : g);
@@ -203,7 +203,7 @@ function nutzerIp(req) {
 function istPremium(req) {
   // Premium gibt es noch nicht. Sobald es das gibt, ist das hier
   // die EINE Zeile, die angepasst werden muss.
-  return !!(req.user && (req.user.istPremium || req.user.premium || req.user.plan === 'premium'));
+  return !!(req.user && (req.user.stufe === 'kiara_plus' || req.user.stufe === 'nora'));
 }
 
 function stufeVon(req) {
@@ -368,7 +368,7 @@ function meldung(stufe, grenze, art) {
   }
 
   if (stufe === 'konto') {
-    return `Du hast deine ${grenze} Suchen ${wann} gebraucht. Mit Premium sind es 15 im Monat, für CHF 7.`;
+    return `Du hast deine ${grenze} Suchen ${wann} gebraucht. Mit Kiara Plus sind es ${alsText(STUFEN.premium.grenze)} im Monat, für CHF ${Number(process.env.PREMIUM_PREIS_MONAT || 20)}.`;
   }
 
   return `Du hast deine ${grenze} Suchen ${wann} gebraucht. Ab dem 1. des nächsten Monats geht es weiter.`;

@@ -82,6 +82,12 @@ const userSchema = new mongoose.Schema({
   personalisierungAktiv: { type: Boolean, default: false },
   bestaetigteBestellungen: { type: Number, default: 0, min: 0 },
 
+  // Abo-Stufe. Setzt NUR der Server: scripts/stufeSetzen.js, spaeter
+  // der Stripe-Webhook. Keine Route darf sie aus req.body uebernehmen
+  // (geprueft 11.11.2026: userProfile.js nimmt nur Vor- und Nachname).
+  stufe: { type: String, enum: ['kiara', 'kiara_plus', 'nora'], default: 'kiara' },
+  stufeGeaendert: { type: Date, default: null },
+
   // ==========================================
   // TOKENS
   // ==========================================

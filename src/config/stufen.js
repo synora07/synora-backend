@@ -77,12 +77,19 @@ function janein(name, vorgabe = false) {
 // EMPFEHLUNG verbessert. Mehr Suchen ja, bessere Treffer nie.
 
 const STUFEN = [
+  // Stand 12.11.2026 (Pavinash): Kiara und Kiara Plus.
+  // Nora (CHF 75, 250 Suchen) kommt im Februar hierher - erst wenn sie
+  // mehr kann als mehr Suchen. Siehe claude/bauplan-kiara-stufen.md.
+  //
+  // HAEKCHEN NUR FUER DAS, WAS ES WIRKLICH GIBT. Preisverlauf, Merkliste
+  // und Besitz-Waechter sind noch nicht gebaut, darum false. Wer sie
+  // einschaltet, bevor sie funktionieren, verkauft etwas, das es nicht gibt.
   {
     schluessel: 'gratis',
-    name: 'Gratis',
+    name: 'Kiara',
     preisMonat: 0,
     preisJahr: null,
-    suchenProMonat: grenze('SUCHEN_KONTO', 5),
+    suchenProMonat: grenze('SUCHEN_KONTO', 3),
     alarme: zahl('PREISALARM_MAX_GRATIS', 0),
     kann: {
       dreiVorschlaege: true,
@@ -97,42 +104,23 @@ const STUFEN = [
     }
   },
   {
-    schluessel: 'premium',
-    name: 'Premium',
-    preisMonat: zahl('PREMIUM_PREIS_MONAT', 7),
-    preisJahr: zahl('PREMIUM_PREIS_JAHR', 79),
-    suchenProMonat: grenze('SUCHEN_PREMIUM', 50),
+    schluessel: 'premium',     // bleibt so - die Suchsperre kennt 'premium'
+    name: 'Kiara Plus',
+    preisMonat: zahl('PREMIUM_PREIS_MONAT', 20),
+    preisJahr: null,           // Jahresabo kommt spaeter, der Stripe-Link ist monatlich
+    suchenProMonat: grenze('SUCHEN_PREMIUM', 55),
     alarme: zahl('PREISALARM_MAX_PREMIUM', 3),
-    empfohlen: true,           // die gruen hinterlegte Spalte
+    empfohlen: true,
     kann: {
       dreiVorschlaege: true,
       nachteilJeProdukt: true,
       endpreisSchweiz: true,
       preisalarm: true,
-      preisverlauf: true,
-      merkliste: true,
-      besitzWaechter: true,
+      preisverlauf: false,
+      merkliste: false,
+      besitzWaechter: false,
       aktionenFrueher: false,
       personenImKonto: 1
-    }
-  },
-  {
-    schluessel: 'plus',
-    name: 'Premium Plus',
-    preisMonat: zahl('PLUS_PREIS_MONAT', 20),
-    preisJahr: zahl('PLUS_PREIS_JAHR', 199),
-    suchenProMonat: grenze('SUCHEN_PLUS', Infinity),
-    alarme: zahl('PREISALARM_MAX_PLUS', Infinity),
-    kann: {
-      dreiVorschlaege: true,
-      nachteilJeProdukt: true,
-      endpreisSchweiz: true,
-      preisalarm: true,
-      preisverlauf: true,
-      merkliste: true,
-      besitzWaechter: true,
-      aktionenFrueher: true,
-      personenImKonto: zahl('PLUS_PERSONEN', 4)
     }
   }
 ];
@@ -216,8 +204,8 @@ module.exports = {
   pruefeStufen,
   fuersFrontend,
   nachAussen,
-  // Wird Premium schon verkauft? Laut Dokument erst ab Juli 2027 -
-  // bis dahin wird es verschenkt. Darum zeigt die Preisseite
-  // keinen Kaufknopf, solange das hier false ist.
+  // Wird Kiara Plus verkauft? Entschieden am 10.11.2026: ja, sobald
+  // Stripe steht. Eingeschaltet wird bei Railway mit PREMIUM_VERKAUF=true.
+  // Solange das false ist, zeigt die Preisseite keinen Kaufknopf.
   verkaufAktiv: () => janein('PREMIUM_VERKAUF', false)
 };

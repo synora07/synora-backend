@@ -33,7 +33,7 @@ const PushAbo = require('../models/PushAbo');
 // ============================================
 router.get('/', requireAuth, async (req, res) => {
   try {
-    const istPremium = !!req.user.premium;
+    const istPremium = !!(req.user && (req.user.stufe === 'kiara_plus' || req.user.stufe === 'nora'));
     const alarme = await preisAlarm.liste(req.user._id);
     res.json({
       alarme,

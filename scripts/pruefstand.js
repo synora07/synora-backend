@@ -134,6 +134,14 @@ const RUECKFRAGE_ANSICHT = ['sofa', 'shampoo', 'winterjacke', 'staubsauger', 'pa
 // ---------- 3. Faktenpruefung ----------
 // Ein Produkt je Welt, mit genau den Daten, die bekannt sind.
 // [Satz, soll gestrichen werden]
+//
+// faelle          gelten immer
+// nurMitZahlen    erst wenn zahlenBelegt.js eingespielt ist
+// nurMitWoertern  erst wenn belegWoerter.js eingespielt ist
+// Fehlt die jeweilige Pruefung, werden diese Faelle ausgelassen statt
+// rot - so laeuft der Pruefstand vor UND nach dem Einspielen.
+const LEERES_PRODUKT = { title: 'Testprodukt', wissenText: 'Farbe schwarz', rating: 4.0, reviews: 50 };
+
 const FAKTEN_MUSS = [
   {
     welt: 'Elektronik',
@@ -205,25 +213,151 @@ const FAKTEN_MUSS = [
       ['Wasserdicht, gut fuer den Sport', true]              // nicht belegt
     ],
     nurMitZahlen: []
+  },
+
+  // ---------- Woerter mit Belegpflicht - eingetragen 09.11. ----------
+  {
+    welt: 'Kosmetik (Woerter)',
+    produkt: {
+      title: 'Gesichtscreme Sensitive 50 ml',
+      wissenText: 'Parfuemfrei\nNicht komedogen\nDermatologisch getestet\nVegan',
+      rating: 4.4,
+      reviews: 120
+    },
+    faelle: [],
+    nurMitZahlen: [],
+    nurMitWoertern: [
+      ['Parfuemfrei, gut bei Allergien', false],
+      ['Vegan', false],
+      ['Ohne Tierversuche hergestellt', true],
+      ['Silikonfrei und ohne Parabene', true],
+      ['Ob sie ohne Tierversuche hergestellt wird, ist nicht angegeben', false],   // ehrlich, bleibt
+      ['Ob sie ohne Tierversuche hergestellt wird, ist nicht angegeben, wahrscheinlich aber schon', true]
+    ]
+  },
+  {
+    welt: 'Kleidung (Woerter)',
+    produkt: {
+      title: 'Regenjacke Herren',
+      wissenText: 'Wasserabweisend (DWR-Beschichtung)\nAtmungsaktiv\nObermaterial Polyamid\nFuellung Kunstdaune',
+      rating: 4.2,
+      reviews: 64
+    },
+    faelle: [],
+    nurMitZahlen: [],
+    nurMitWoertern: [
+      ['Wasserabweisend, haelt leichtem Regen stand', false],
+      ['Atmungsaktiv', false],
+      ['Daunenfuellung haelt warm', true],                  // Kunstdaune ist keine Daune
+      ['Mit Kunstdaunen gefuellt', false]
+    ]
+  },
+  {
+    welt: 'Schuhe (Leder)',
+    produkt: {
+      title: 'Sneaker Damen weiss',
+      wissenText: 'Obermaterial Kunstleder (PU-Leder)\nSohle Gummi',
+      rating: 4.1,
+      reviews: 77
+    },
+    faelle: [],
+    nurMitZahlen: [],
+    nurMitWoertern: [
+      ['Aus Leder, wird mit der Zeit schoener', true],      // PU-Leder ist kein Leder
+      ['Kunstleder, pflegeleicht', false],
+      ['Kein echtes Leder, sondern PU', false]
+    ]
+  },
+  {
+    welt: 'Moebel (Woerter)',
+    produkt: {
+      title: 'Esstisch Wildeiche massiv 180 cm ausziehbar',
+      wissenText: 'Material Wildeiche massiv, geoelt\nFSC-zertifiziert',
+      rating: 4.6,
+      reviews: 45
+    },
+    faelle: [],
+    nurMitZahlen: [],
+    nurMitWoertern: [
+      ['Massivholz, kein Furnier', false],
+      ['Ausziehbar fuer Gaeste', false],
+      ['Hoehenverstellbar', true]
+    ]
+  },
+  {
+    welt: 'Moebel (Furnier)',
+    produkt: {
+      title: 'Couchtisch Industrial',
+      wissenText: 'Gestell massiver Stahlrahmen\nPlatte MDF, Eiche furniert',
+      rating: 4.0,
+      reviews: 30
+    },
+    faelle: [],
+    nurMitZahlen: [],
+    nurMitWoertern: [
+      ['Massivholz, kein Furnier', true],                   // massiver STAHL, Eiche FURNIERT
+      ['Stabiler, massiver Stahlrahmen', false]
+    ]
+  },
+  {
+    welt: 'Elektronik (Woerter)',
+    produkt: {
+      title: 'Philips Monitor 27E1N1800AE/00 27 Zoll',
+      wissenText: 'Bildschirmdiagonale 27 Zoll\nBildwiederholrate 75 Hz\nAnschluesse HDMI, USB-C',
+      rating: 4.5,
+      reviews: 692
+    },
+    faelle: [],
+    nurMitZahlen: [],
+    nurMitWoertern: [
+      ['Hoehenverstellbarer Standfuss', true]               // haeufige falsche Behauptung
+    ]
+  },
+  {
+    // Die Luecken vom 09.11. - geschlossen, darum jetzt MUSS.
+    welt: 'Unbelegt (leeres Produkt)',
+    produkt: LEERES_PRODUKT,
+    faelle: [],
+    nurMitZahlen: [
+      ['Belastbar bis 150 kg', true]
+    ],
+    nurMitWoertern: [
+      ['Parfuemfrei, ideal bei Allergien', true],
+      ['Vegan und ohne Tierversuche', true],
+      ['Dermatologisch getestet', true],
+      ['Wasserabweisend, haelt leichtem Regen stand', true],
+      ['Aus Bio-Baumwolle', true],
+      ['Atmungsaktiv', true],
+      ['Massivholz, kein Furnier', true]
+    ]
+  },
+  {
+    // Darf NIE gestrichen werden. Faellt hier einer, steht eine
+    // Pruefung zu scharf und reisst Loecher in gute Antworten.
+    welt: 'Fehlalarm (normale Saetze)',
+    produkt: LEERES_PRODUKT,
+    faelle: [
+      ['Guter Allrounder fuer den Alltag', false],
+      ['Bequemer Schnitt, faellt normal aus', false],
+      ['Zieht schnell ein und fettet nicht', false],
+      ['Sehr massiv gebaut', false],
+      ['Seidiger Glanz nach dem Waschen', false],
+      ['Lederoptik, wirkt hochwertig', false],
+      ['Im Zweifel lieber eine Nummer groesser nehmen', false]
+    ],
+    nurMitZahlen: []
   }
 ];
 
-// Woerter, die in Kosmetik und Kleidung den Kauf entscheiden. Steht
-// keine Belegpflicht dafuer in faktenpruefung.js, kommen sie
-// ungeprueft durch. Gemessen wird, ob ein unbelegter Satz gestrichen
-// wird. Am 09.11. war bekannt: die Belegpflicht gibt es nur fuer
-// Kopfhoerer.
+// Was noch NICHT geprueft wird. Am 09.11. offen: Kennungen mit Zahl
+// (LSF, HDMI-Version, WLAN-Standard) und Herkunft ausser "Swiss Made".
+// Gemessen wird, ob ein unbelegter Satz gestrichen wird.
 const FAKTEN_LUECKE = [
-  { welt: 'Kosmetik', satz: 'Parfuemfrei, ideal bei Allergien' },
-  { welt: 'Kosmetik', satz: 'Vegan und ohne Tierversuche' },
-  { welt: 'Kosmetik', satz: 'Dermatologisch getestet' },
-  { welt: 'Kleidung', satz: 'Wasserabweisend, haelt leichtem Regen stand' },
-  { welt: 'Kleidung', satz: 'Aus Bio-Baumwolle' },
-  { welt: 'Kleidung', satz: 'Atmungsaktiv' },
-  { welt: 'Moebel', satz: 'Massivholz, kein Furnier' },
-  { welt: 'Moebel', satz: 'Belastbar bis 150 kg' }
+  { welt: 'Kosmetik', satz: 'Mit LSF 50 fuer den Sommer' },
+  { welt: 'Elektronik', satz: 'Unterstuetzt HDMI 2.1' },
+  { welt: 'Elektronik', satz: 'Wi-Fi 6 fuer schnelles Netz' },
+  { welt: 'Allgemein', satz: 'Made in Germany' }
 ];
-const LEERES_PRODUKT = { title: 'Testprodukt', wissenText: 'Farbe schwarz', rating: 4.0, reviews: 50 };
 
 // ---------- 4. Preisverdacht ----------
 // [Name, Angebote, erwartete Anzahl Verdachtsfaelle, wer]
@@ -395,10 +529,13 @@ function pruefeFakten() {
     return;
   }
 
-  // Ist die Zahl-mit-Einheit-Pruefung eingebaut?
+  // Welche Pruefungen sind eingebaut?
   let mitZahlen = false;
+  let mitWoertern = false;
   try {
-    mitZahlen = fs.readFileSync(path.join(SRC, 'faktenpruefung.js'), 'utf8').includes('ZAHL_MIT_EINHEIT');
+    const quelle = fs.readFileSync(path.join(SRC, 'faktenpruefung.js'), 'utf8');
+    mitZahlen = quelle.includes('ZAHL_MIT_EINHEIT');
+    mitWoertern = quelle.includes('WOERTER_BELEG');
   } catch (_) {}
 
   const gestrichenVon = (saetze, produkt) => {
@@ -413,27 +550,37 @@ function pruefeFakten() {
 
   for (const block of FAKTEN_MUSS) {
     echtLog(`  ${block.welt}`);
-    const faelle = mitZahlen ? block.faelle.concat(block.nurMitZahlen) : block.faelle;
-    const weg = gestrichenVon(faelle.map((x) => x[0]), block.produkt);
-    if (!weg) {
-      echtLog('    Format der Rueckgabe unbekannt - Abschnitt uebersprungen');
-      ERGEBNIS.ausgelassen += faelle.length;
-      continue;
+    const zahlen = block.nurMitZahlen || [];
+    const woerter = block.nurMitWoertern || [];
+    const faelle = block.faelle
+      .concat(mitZahlen ? zahlen : [])
+      .concat(mitWoertern ? woerter : []);
+    if (faelle.length) {
+      const weg = gestrichenVon(faelle.map((x) => x[0]), block.produkt);
+      if (!weg) {
+        echtLog('    Format der Rueckgabe unbekannt - Abschnitt uebersprungen');
+        ERGEBNIS.ausgelassen += faelle.length;
+        continue;
+      }
+      for (const [satz, soll] of faelle) {
+        const ist = weg.has(satz);
+        const gruen = ist === soll;
+        zeile(gruen, 'muss', satz, ist ? 'WEG' : 'bleibt');
+        zaehle('muss', gruen, `Faktenpruefung (${block.welt}): "${satz}" ${ist ? 'gestrichen' : 'nicht gestrichen'}`);
+      }
     }
-    for (const [satz, soll] of faelle) {
-      const ist = weg.has(satz);
-      const gruen = ist === soll;
-      zeile(gruen, 'muss', satz, ist ? 'WEG' : 'bleibt');
-      zaehle('muss', gruen, `Faktenpruefung (${block.welt}): "${satz}" ${ist ? 'gestrichen' : 'nicht gestrichen'}`);
+    if (!mitZahlen && zahlen.length) {
+      echtLog(`    (${zahlen.length} Zahlen-Faelle ausgelassen - zahlenBelegt.js noch nicht eingespielt)`);
+      ERGEBNIS.ausgelassen += zahlen.length;
     }
-    if (!mitZahlen && block.nurMitZahlen.length) {
-      echtLog(`    (${block.nurMitZahlen.length} Zahlen-Faelle ausgelassen - zahlenBelegt.js noch nicht eingespielt)`);
-      ERGEBNIS.ausgelassen += block.nurMitZahlen.length;
+    if (!mitWoertern && woerter.length) {
+      echtLog(`    (${woerter.length} Wort-Faelle ausgelassen - belegWoerter.js noch nicht eingespielt)`);
+      ERGEBNIS.ausgelassen += woerter.length;
     }
   }
 
   echtLog('');
-  echtLog('  Woerter ohne Belegpflicht - kommen sie durch?');
+  echtLog('  Noch nicht geprueft - kommen diese Saetze durch?');
   const weg = gestrichenVon(FAKTEN_LUECKE.map((x) => x.satz), LEERES_PRODUKT);
   if (weg) {
     for (const { welt, satz } of FAKTEN_LUECKE) {
