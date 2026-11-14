@@ -251,6 +251,10 @@ function ladeAlleRouten() {
   // Frontend - aus denselben Objekten, die sie auch durchsetzen.
   // Ohne diese Zeile bleiben Premium-Seite und AGB-Preise leer.
   ladeRoute('einstellungen', '/api/einstellungen');
+  // NEU am 14.11.2026: Nora fuer Geschaefte (Etappe 1, Baustein N0)
+  // Nicht kritisch - faellt Nora aus, laeuft Kiara weiter.
+  ladeRoute('nora', '/api/nora');
+
   ladeRoute('rueckmeldung', '/api');
 }
 
